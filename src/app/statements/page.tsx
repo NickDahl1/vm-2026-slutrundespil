@@ -1,7 +1,10 @@
 import { PageHeader } from "@/components/page-header";
+import { requireUser } from "@/lib/auth";
 import { statements } from "@/lib/placeholders";
 
-export default function StatementsPage() {
+export default async function StatementsPage() {
+  await requireUser();
+
   return (
     <div className="space-y-5">
       <PageHeader
