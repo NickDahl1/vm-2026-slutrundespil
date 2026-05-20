@@ -36,6 +36,17 @@ export type AppSettings = {
   updated_at: string;
 };
 
+export type LeaderboardEntry = {
+  user_id: string;
+  display_name: string;
+  match_points: number;
+  total_points: number;
+  perfect_results: number;
+  correct_outcomes: number;
+  predictions_count: number;
+  rank: number;
+};
+
 export const STATUS_LABELS: Record<Match["status"], string> = {
   scheduled: "Planlagt",
   live: "Spilles nu",
