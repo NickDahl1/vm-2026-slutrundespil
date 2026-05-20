@@ -20,10 +20,10 @@ export default async function AdminStatementsPage({
 
   const statements = (statementsData ?? []) as Statement[];
 
-  const answerCounts = new Map<number, number>();
+  const answerCounts: Record<number, number> = {};
   for (const row of answersData ?? []) {
     const r = row as { statement_id: number };
-    answerCounts.set(r.statement_id, (answerCounts.get(r.statement_id) ?? 0) + 1);
+    answerCounts[r.statement_id] = (answerCounts[r.statement_id] ?? 0) + 1;
   }
 
   const resolved = statements.filter((s) => s.is_resolved).length;

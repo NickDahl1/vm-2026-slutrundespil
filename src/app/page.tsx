@@ -1,31 +1,46 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/page-header";
-import { PlaceholderPanel } from "@/components/placeholder-panel";
+import { redirect } from "next/navigation";
+import { getUserWithProfile } from "@/lib/auth";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const { user } = await getUserWithProfile();
+
+  if (user) {
+    redirect("/dashboard");
+  }
+
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow="Velkommen"
-        title="VM 2026"
-        description="Et simpelt fundament til slutrundespillet: kampbud, udsagn, point og leaderboard samles her, når auth og data er klar."
-      />
+    <div className="space-y-8">
+      <div className="pt-4 text-center">
+        <p className="text-xs font-black uppercase tracking-widest text-pitch-500">
+          Slutrundespil
+        </p>
+        <h1 className="mt-2 text-4xl font-black text-slate-950">VM 2026</h1>
+        <p className="mt-3 text-base font-semibold text-slate-500">
+          Giv dit bud på kampene, svar på udsagn og følg stillingen.
+        </p>
+      </div>
 
-      <section className="grid gap-4 sm:grid-cols-2">
-        <Link className="card bg-pitch-700 text-white" href="/dashboard">
-          <p className="text-sm font-bold text-pitch-100">Efter login</p>
-          <h2 className="mt-2 text-2xl font-black">Dashboard</h2>
-          <p className="mt-2 text-sm leading-6 text-pitch-50">
-            Forsiden efter login tænkes som spillerens overblik.
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          className="card bg-pitch-700 text-center text-white"
+          href="/login"
+        >
+          <h2 className="text-lg font-black">Log ind</h2>
+          <p className="mt-1 text-sm font-semibold text-pitch-100">
+            Har du allerede en konto?
           </p>
         </Link>
-        <PlaceholderPanel title="Næste skridt" actionLabel="Kommer senere">
-          <p className="text-sm leading-6 text-slate-600">
-            Supabase Auth, kampbud og pointlogik bliver koblet på i kommende
-            opgaver.
+        <Link
+          className="card border border-pitch-100 bg-pitch-50 text-center"
+          href="/signup"
+        >
+          <h2 className="text-lg font-black text-pitch-700">Opret konto</h2>
+          <p className="mt-1 text-sm font-semibold text-pitch-500">
+            Kom med i spillet nu.
           </p>
-        </PlaceholderPanel>
-      </section>
+        </Link>
+      </div>
     </div>
   );
 }
