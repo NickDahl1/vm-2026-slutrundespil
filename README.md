@@ -163,6 +163,44 @@ set game_locked = true
 where id = 'global';
 ```
 
+## Pointregler for kampbud
+
+Point beregnes kun når `match.status = 'finished'` og begge scorer er udfyldt.
+
+| Betingelse | Point |
+|-----------|-------|
+| Predicted hjemmemål = faktisk hjemmemål | 1 |
+| Predicted udemål = faktisk udemål | 1 |
+| Korrekt udfald (hjemmesejer / uafgjort / udesejer) | 1 |
+| **Maks pr. kamp** | **3** |
+
+Ingen ekstra point for perfekt resultat. Ingen minuspoint. Ingen point for måldifference.
+
+**Eksempler:**
+
+| Bud | Resultat | Point |
+|-----|---------|-------|
+| 2-1 | 2-1 | 3 |
+| 2-1 | 3-1 | 2 |
+| 2-1 | 2-2 | 1 |
+| 2-1 | 0-1 | 1 |
+| 2-1 | 1-2 | 0 |
+| 0-0 | 0-0 | 3 |
+| 1-1 | 2-2 | 1 |
+
+Pointlogikken ligger i `src/lib/scoring.ts` og er dækket af unit tests (`npm run test`).
+
+## Genberegn point
+
+Point beregnes automatisk, når admin gemmer et resultat med status "Afsluttet".
+
+Genberegn alle færdige kampe manuelt fra `/admin/matches` → knappen "Genberegn point for alle færdige kampe".
+
+Via SQL (nødvendigt kun hvis der er lavet direkte DB-rettelser):
+```sql
+-- Brug knappen i admin-UI i stedet for manuel SQL
+```
+
 ## Gør en bruger til admin
 
 ```sql

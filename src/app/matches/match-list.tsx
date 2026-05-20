@@ -57,6 +57,44 @@ const statusColors: Record<Match["status"], string> = {
 
 const initialState: PredictionState = { status: "idle", message: "" };
 
+function PointRow({ label, correct }: { label: string; correct: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-xs font-black ${correct ? "text-pitch-700" : "text-slate-400"}`}>
+        {correct ? "✓" : "✗"}
+      </span>
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
+    </div>
+  );
+}
+
+function PointBreakdown({ prediction }: { prediction: Prediction }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1.5">
+          <PointRow
+            correct={prediction.points_home_score === 1}
+            label="Hjemmemål"
+          />
+          <PointRow
+            correct={prediction.points_away_score === 1}
+            label="Udemål"
+          />
+          <PointRow
+            correct={prediction.points_outcome === 1}
+            label="Udfald"
+          />
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-black text-slate-950">{prediction.total_points}</p>
+          <p className="text-xs font-semibold text-slate-500">point</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MatchCard({
   match,
   prediction,
@@ -71,6 +109,8 @@ function MatchCard({
     initialState
   );
 
+  const isFinished = match.status === "finished";
+  const showForm = !locked && !isFinished;
   const hasResult = match.home_score_90 !== null && match.away_score_90 !== null;
 
   return (
@@ -104,7 +144,9 @@ function MatchCard({
         {formatTime(match.kickoff_at)} UTC
       </p>
 
-      {locked ? (
+      {isFinished && prediction && <PointBreakdown prediction={prediction} />}
+
+      {!showForm && !isFinished && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
           {prediction ? (
             <div className="flex items-center justify-between">
@@ -120,7 +162,9 @@ function MatchCard({
             </p>
           )}
         </div>
-      ) : (
+      )}
+
+      {showForm && (
         <form action={formAction} className="space-y-3">
           <input name="match_id" type="hidden" value={match.id} />
 
