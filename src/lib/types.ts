@@ -14,6 +14,28 @@ export type Match = {
   updated_at: string;
 };
 
+export type Prediction = {
+  id: number;
+  user_id: string;
+  match_id: number;
+  predicted_home_score: number;
+  predicted_away_score: number;
+  points_home_score: number;
+  points_away_score: number;
+  points_outcome: number;
+  total_points: number;
+  submitted_at: string;
+  updated_at: string;
+};
+
+export type AppSettings = {
+  id: string;
+  group_stage_lock_at: string | null;
+  knockout_stage_lock_at: string | null;
+  game_locked: boolean;
+  updated_at: string;
+};
+
 export const STATUS_LABELS: Record<Match["status"], string> = {
   scheduled: "Planlagt",
   live: "Spilles nu",
