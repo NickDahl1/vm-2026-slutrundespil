@@ -1,28 +1,56 @@
 import { PageHeader } from "@/components/page-header";
-import { PlaceholderPanel } from "@/components/placeholder-panel";
-import { statements } from "@/lib/placeholders";
+import { FormMessage } from "@/components/form-message";
+import { createClient } from "@/lib/supabase/server";
+import type { Statement } from "@/lib/types";
+import { AdminStatementsClient } from "./statement-client";
+import { recalculateAllStatementPointsAction } from "./actions";
 
-export default function AdminStatementsPage() {
+export default async function AdminStatementsPage({
+  searchParams
+}: {
+  searchParams: Promise<Record<string, string | string[]>>;
+}) {
+  const params = await searchParams;
+  const supabase = await createClient();
+
+  const [{ data: statementsData }, { data: answersData }] = await Promise.all([
+    supabase.from("statements").select("*").order("sort_order", { ascending: true }),
+    supabase.from("statement_predictions").select("statement_id")
+  ]);
+
+  const statements = (statementsData ?? []) as Statement[];
+
+  const answerCounts = new Map<number, number>();
+  for (const row of answersData ?? []) {
+    const r = row as { statement_id: number };
+    answerCounts.set(r.statement_id, (answerCounts.get(r.statement_id) ?? 0) + 1);
+  }
+
+  const resolved = statements.filter((s) => s.is_resolved).length;
+
   return (
     <div className="space-y-5">
       <PageHeader
+        description={`${statements.length} udsagn · ${resolved} afgjort`}
         eyebrow="Admin"
         title="Udsagn"
-        description="Placeholder til at oprette og lukke bonusudsagn."
       />
 
-      <PlaceholderPanel title="15 udsagn" actionLabel="Rediger udsagn senere">
-        <ol className="space-y-2">
-          {statements.map((statement) => (
-            <li
-              className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700"
-              key={statement}
-            >
-              {statement}
-            </li>
-          ))}
-        </ol>
-      </PlaceholderPanel>
+      <FormMessage searchParams={params} />
+
+      <form action={recalculateAllStatementPointsAction}>
+        <button
+          className="w-full rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-3 text-sm font-black text-pitch-700 shadow-sm"
+          type="submit"
+        >
+          Genberegn point for alle afgjorte udsagn
+        </button>
+      </form>
+
+      <AdminStatementsClient
+        answerCounts={answerCounts}
+        statements={statements}
+      />
     </div>
   );
 }

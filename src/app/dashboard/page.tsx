@@ -13,6 +13,9 @@ type PredSummary = {
 
 type RankEntry = {
   rank: number;
+  match_points: number;
+  statement_points: number;
+  total_points: number;
 };
 
 function formatDeadline(iso: string): string {
@@ -42,7 +45,9 @@ export default async function DashboardPage({
     { data: finishedMatchData },
     { data: userPredData },
     { data: rankData },
-    { count: participantCount }
+    { count: participantCount },
+    { count: statementCount },
+    { count: statementAnswerCount }
   ] = await Promise.all([
     supabase.from("matches").select("*", { count: "exact", head: true }),
     supabase
@@ -61,28 +66,41 @@ export default async function DashboardPage({
       .eq("user_id", user.id),
     supabase
       .from("leaderboard_view" as never)
-      .select("rank")
+      .select("rank, match_points, statement_points, total_points")
       .eq("user_id", user.id)
       .single(),
     supabase
       .from("leaderboard_view" as never)
+      .select("*", { count: "exact", head: true }),
+    supabase.from("statements").select("*", { count: "exact", head: true }),
+    supabase
+      .from("statement_predictions")
       .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
   ]);
 
   const settings = settingsData as AppSettings | null;
   const total = matchCount ?? 0;
   const submitted = predictionCount ?? 0;
   const missing = Math.max(0, total - submitted);
-  const myRank = (rankData as RankEntry | null)?.rank ?? null;
+  const entry = rankData as RankEntry | null;
   const participants = participantCount ?? 0;
+  const totalStatements = statementCount ?? 0;
+  const answeredStatements = statementAnswerCount ?? 0;
+  const missingStatements = Math.max(0, totalStatements - answeredStatements);
 
-  const finishedIds = new Set((finishedMatchData ?? []).map((m) => (m as { id: number }).id));
+  const finishedIds = new Set(
+    (finishedMatchData ?? []).map((m) => (m as { id: number }).id)
+  );
   const preds = (userPredData ?? []) as PredSummary[];
   const finishedPreds = preds.filter((p) => finishedIds.has(p.match_id));
 
-  const totalPoints = finishedPreds.reduce((s, p) => s + p.total_points, 0);
+  const matchPoints = entry?.match_points ?? finishedPreds.reduce((s, p) => s + p.total_points, 0);
+  const statementPoints = entry?.statement_points ?? 0;
+  const totalPoints = entry?.total_points ?? matchPoints;
   const perfectResults = finishedPreds.filter((p) => p.total_points === 3).length;
   const correctOutcomes = finishedPreds.filter((p) => p.points_outcome === 1).length;
+  const myRank = entry?.rank ?? null;
 
   const deadlineDetail = settings?.group_stage_lock_at
     ? `Frist: ${formatDeadline(settings.group_stage_lock_at)} UTC`
@@ -91,7 +109,7 @@ export default async function DashboardPage({
   return (
     <div className="space-y-5">
       <PageHeader
-        description="Dit overblik over point, kampbud, deadlines og åbne opgaver."
+        description="Dit overblik over point, kampbud, udsagn, deadlines og åbne opgaver."
         eyebrow="Spiller"
         title={`Dashboard${profile?.display_name ? ` for ${profile.display_name}` : ""}`}
       />
@@ -99,8 +117,8 @@ export default async function DashboardPage({
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
-          detail={`Af ${finishedPreds.length} afsluttede kampe med bud`}
-          label="Mine point i alt"
+          detail={`${matchPoints} kamp + ${statementPoints} udsagn`}
+          label="Samlet point"
           tone="green"
           value={String(totalPoints)}
         />
@@ -113,7 +131,7 @@ export default async function DashboardPage({
         <StatCard
           detail={deadlineDetail}
           label="Deadline — grundspil"
-          value={settings?.game_locked ? "Låst" : missing === 0 ? "Klar" : "Åben"}
+          value={settings?.game_locked ? "Låst" : missing === 0 && missingStatements === 0 ? "Klar" : "Åben"}
         />
         <StatCard
           detail={`Ud af ${total} kampe i alt`}
@@ -132,6 +150,18 @@ export default async function DashboardPage({
           label="Min placering"
           tone={myRank !== null && myRank <= 3 ? "gold" : "neutral"}
           value={myRank !== null ? `#${myRank}` : "—"}
+        />
+        <StatCard
+          detail={`Af ${totalStatements} udsagn i alt`}
+          label="Udsagn besvaret"
+          tone={answeredStatements === totalStatements && totalStatements > 0 ? "green" : "neutral"}
+          value={String(answeredStatements)}
+        />
+        <StatCard
+          detail={missingStatements === 0 ? "Du har svaret på alle udsagn" : "Besvar dem inden deadline"}
+          label="Manglende udsagn"
+          tone={missingStatements > 0 ? "gold" : "neutral"}
+          value={String(missingStatements)}
         />
       </section>
     </div>

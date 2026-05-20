@@ -1,40 +1,59 @@
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
-import { statements } from "@/lib/placeholders";
+import { createClient } from "@/lib/supabase/server";
+import type { Statement, StatementPrediction, AppSettings } from "@/lib/types";
+import { StatementList } from "./statement-list";
 
 export default async function StatementsPage() {
-  await requireUser();
+  const { user } = await requireUser();
+  const supabase = await createClient();
+
+  const [
+    { data: statementsData },
+    { data: predictionsData },
+    { data: settingsData }
+  ] = await Promise.all([
+    supabase
+      .from("statements")
+      .select("*")
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("statement_predictions")
+      .select("*")
+      .eq("user_id", user.id),
+    supabase.from("app_settings").select("*").single()
+  ]);
+
+  const statements = (statementsData ?? []) as Statement[];
+  const predictions = (predictionsData ?? []) as StatementPrediction[];
+  const settings = settingsData as AppSettings | null;
+
+  const resolved = statements.filter((s) => s.is_resolved).length;
+  const answered = predictions.length;
 
   return (
     <div className="space-y-5">
       <PageHeader
+        description={`${statements.length} udsagn · ${answered} besvaret · ${resolved} afgjort`}
         eyebrow="Bonus"
         title="Udsagn"
-        description="Svar ja eller nej på turneringsudsagn, når den rigtige funktionalitet er klar."
       />
 
-      <section className="space-y-3">
-        {statements.map((statement, index) => (
-          <article className="card" key={statement}>
-            <div className="flex items-start gap-3">
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-pitch-50 text-sm font-black text-pitch-700">
-                {index + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 className="font-black text-slate-950">{statement}</h2>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-500" type="button">
-                    Ja
-                  </button>
-                  <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-500" type="button">
-                    Nej
-                  </button>
-                </div>
-              </div>
-            </div>
-          </article>
-        ))}
-      </section>
+      {statements.length === 0 ? (
+        <div className="card py-12 text-center">
+          <p className="text-2xl">📋</p>
+          <p className="mt-3 font-black text-slate-950">Ingen udsagn endnu</p>
+          <p className="mt-1 text-sm font-semibold text-slate-500">
+            Udsagn oprettes af admin inden turneringen.
+          </p>
+        </div>
+      ) : (
+        <StatementList
+          predictions={predictions}
+          settings={settings}
+          statements={statements}
+        />
+      )}
     </div>
   );
 }

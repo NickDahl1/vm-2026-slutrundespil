@@ -53,7 +53,7 @@ export default async function LeaderboardPage() {
                 }`}
                 href={`/leaderboard/${entry.user_id}`}
               >
-                <span className="pt-0.5 text-sm font-black text-slate-950">
+                <span className="pt-1 text-sm font-black text-slate-950">
                   {medal ?? `#${entry.rank}`}
                 </span>
 
@@ -70,14 +70,32 @@ export default async function LeaderboardPage() {
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-xs font-semibold text-slate-400">
-                    {entry.perfect_results} perf.&nbsp;·&nbsp;
-                    {entry.correct_outcomes} udfald&nbsp;·&nbsp;
-                    {entry.predictions_count} bud
-                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {entry.match_points > 0 || entry.statement_points > 0 ? (
+                      <>
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-500">
+                          {entry.match_points}K
+                        </span>
+                        {entry.statement_points > 0 && (
+                          <span className="rounded bg-cup-100 px-1.5 py-0.5 text-xs font-bold text-cup-700">
+                            {entry.statement_points}U
+                          </span>
+                        )}
+                      </>
+                    ) : null}
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-400">
+                      {entry.perfect_results} perfekte
+                    </span>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-400">
+                      {entry.correct_outcomes} udfald
+                    </span>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-400">
+                      {entry.predictions_count} bud
+                    </span>
+                  </div>
                 </div>
 
-                <span className="pt-0.5 text-right text-base font-black text-slate-950">
+                <span className="pt-1 text-right text-base font-black text-slate-950">
                   {entry.total_points}
                 </span>
               </Link>
