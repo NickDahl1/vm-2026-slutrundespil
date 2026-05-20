@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Match } from "@/lib/types";
 import { STATUS_LABELS, PHASE_LABELS } from "@/lib/types";
+import { formatDanishDateTime } from "@/lib/date-format";
 import {
   createMatchAction,
   updateMatchAction,
@@ -118,7 +119,7 @@ function MatchForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <label className="block text-xs font-bold text-slate-700" htmlFor="kickoff_at">
-            Afspark (UTC) *
+            Afspark (UTC — vises i dansk tid for brugere) *
           </label>
           <input
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
@@ -277,15 +278,7 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
                     </p>
                   )}
                   <p className="mt-1 text-xs font-semibold text-slate-500">
-                    {new Date(match.kickoff_at).toLocaleString("da-DK", {
-                      timeZone: "UTC",
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}{" "}
-                    UTC · {STATUS_LABELS[match.status]}
+                    {formatDanishDateTime(match.kickoff_at)} · {STATUS_LABELS[match.status]}
                   </p>
                 </div>
               </div>

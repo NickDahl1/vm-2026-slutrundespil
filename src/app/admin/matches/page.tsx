@@ -23,12 +23,20 @@ export default async function AdminMatchesPage({
   return (
     <div className="space-y-5">
       <PageHeader
-        description="Opret, rediger og slet kampe. Indtast resultater og genberegn point."
+        description="Opret, rediger og slet kampe. Tider vises i dansk tid (Europe/Copenhagen) for brugerne."
         eyebrow="Admin"
         title="Kampe"
       />
 
       <FormMessage searchParams={params} />
+
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
+        Alle 104 VM 2026-kampe kan importeres via seed-filen{" "}
+        <code className="font-mono font-bold text-slate-700">
+          supabase/seed/2026_world_cup_matches.sql
+        </code>
+        . Kør den i Supabase SQL Editor. Filen er idempotent.
+      </div>
 
       <form action={recalculateAllPointsAction}>
         <button
