@@ -15,47 +15,82 @@ export default async function AdminPage() {
   const [
     { count: userCount },
     { count: matchCount },
-    { count: predictionCount }
+    { count: predictionCount },
+    { count: statementCount },
+    { count: statementAnswerCount }
   ] = await Promise.all([
     supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("matches").select("*", { count: "exact", head: true }),
-    supabase.from("match_predictions").select("*", { count: "exact", head: true })
+    supabase.from("match_predictions").select("*", { count: "exact", head: true }),
+    supabase.from("statements").select("*", { count: "exact", head: true }),
+    supabase.from("statement_predictions").select("*", { count: "exact", head: true })
   ]);
 
-  const maxPossiblePredictions = (userCount ?? 0) * (matchCount ?? 0);
-  const missingPredictions = Math.max(0, maxPossiblePredictions - (predictionCount ?? 0));
+  const users = userCount ?? 0;
+  const matches = matchCount ?? 0;
+  const predictions = predictionCount ?? 0;
+  const stmts = statementCount ?? 0;
+  const stmtAnswers = statementAnswerCount ?? 0;
+
+  const maxPossiblePredictions = users * matches;
+  const missingPredictions = Math.max(0, maxPossiblePredictions - predictions);
+  const maxPossibleStatementAnswers = users * stmts;
+  const missingStatementAnswers = Math.max(0, maxPossibleStatementAnswers - stmtAnswers);
+
+  const { data: resolvedData } = await supabase
+    .from("statements")
+    .select("id", { count: "exact", head: false })
+    .eq("is_resolved", true);
+  const resolvedCount = resolvedData?.length ?? 0;
 
   return (
     <div className="space-y-5">
       <PageHeader
-        description="Overblik over spillet — brugere, kampe og indsendte bud."
+        description="Overblik over spillet — brugere, kampe, udsagn og indsendte bud."
         eyebrow="Admin"
         title="Admin-overblik"
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           detail="Registrerede spillere"
           label="Brugere"
           tone="green"
-          value={String(userCount ?? 0)}
+          value={String(users)}
         />
         <StatCard
           detail="Oprettede VM-kampe"
           label="Kampe"
-          value={String(matchCount ?? 0)}
+          value={String(matches)}
         />
         <StatCard
           detail="Indsendte kampbud totalt"
           label="Kampbud"
           tone="green"
-          value={String(predictionCount ?? 0)}
+          value={String(predictions)}
         />
         <StatCard
           detail="Mulige bud minus afgivne"
-          label="Manglende bud"
+          label="Manglende kampbud"
           tone={missingPredictions > 0 ? "gold" : "neutral"}
           value={String(missingPredictions)}
+        />
+        <StatCard
+          detail={`${resolvedCount} afgjort af ${stmts} i alt`}
+          label="Udsagn"
+          value={String(stmts)}
+        />
+        <StatCard
+          detail="Indsendte udsagnssvar totalt"
+          label="Udsagnssvar"
+          tone="green"
+          value={String(stmtAnswers)}
+        />
+        <StatCard
+          detail="Mulige svar minus afgivne"
+          label="Manglende udsagnssvar"
+          tone={missingStatementAnswers > 0 ? "gold" : "neutral"}
+          value={String(missingStatementAnswers)}
         />
       </section>
 
