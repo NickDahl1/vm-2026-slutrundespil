@@ -69,6 +69,7 @@ Migrationerne ligger i `supabase/migrations/` og køres i rækkefølge:
 |-----|---------|
 | `20260520120000_auth_schema.sql` | profiles, app_settings, admin_messages, prizes, RLS |
 | `20260520140000_matches.sql` | matches-tabel, constraints, RLS |
+| `20260520150000_match_predictions.sql` | match_predictions-tabel, constraints, RLS |
 
 ## Database: matches
 
@@ -109,6 +110,58 @@ Gå til `/admin/matches` som admin for at:
 - **Slette kamp** — klik "Slet", bekræft
 
 Tidspunkter gemmes i UTC. Visning sker i UTC med label "UTC".
+
+## Database: match_predictions
+
+Tabellen `match_predictions` gemmer brugernes bud på kampresultater.
+
+| Kolonne | Type | Beskrivelse |
+|---------|------|-------------|
+| `id` | bigint (identity) | Primærnøgle |
+| `user_id` | uuid | Reference til `profiles(id)` |
+| `match_id` | bigint | Reference til `matches(id)` |
+| `predicted_home_score` | int | Forudsagt hjemmemål |
+| `predicted_away_score` | int | Forudsagt udemål |
+| `points_home_score` | int | Point for korrekt hjemmemål (default 0) |
+| `points_away_score` | int | Point for korrekt udemål (default 0) |
+| `points_outcome` | int | Point for korrekt udfald (default 0) |
+| `total_points` | int | Samlet pointsum (default 0) |
+| `submitted_at` | timestamptz | Hvornår buddet første gang blev afgivet |
+| `updated_at` | timestamptz | Sidst opdateret (auto-trigger) |
+
+**Constraints:**
+- Kombinationen `(user_id, match_id)` er unik — ét bud pr. bruger pr. kamp
+- Alle scorer og point må ikke være negative
+
+**RLS:**
+- Brugere kan læse, oprette og opdatere egne bud
+- Ingen kan slette bud (audit trail)
+- Admins kan læse alle bud
+
+## Kampbud: sådan fungerer det
+
+Brugere afgiver bud på `/matches`. For hver kamp er der inputfelter til hjemme- og udemål.
+
+**Lås-regler:**
+- `app_settings.game_locked = true` → alle bud låst
+- `app_settings.group_stage_lock_at < now()` → grundspilsbud låst
+- `app_settings.knockout_stage_lock_at < now()` → slutspilsbud låst
+
+Lås-tjek sker både i server action (sikkerhed) og i klienten (visning). Er en kamp låst, vises brugerens bud som tekst frem for redigerbare felter.
+
+**Sæt deadline for grundspil:**
+```sql
+update public.app_settings
+set group_stage_lock_at = '2026-06-11T16:00:00+00:00'
+where id = 'global';
+```
+
+**Lås spillet manuelt:**
+```sql
+update public.app_settings
+set game_locked = true
+where id = 'global';
+```
 
 ## Gør en bruger til admin
 
