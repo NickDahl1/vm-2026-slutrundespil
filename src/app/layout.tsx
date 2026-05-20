@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { SiteShell } from "@/components/site-shell";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "VM 2026",
   description: "Mobil-first slutrundespil-app til VM 2026."
