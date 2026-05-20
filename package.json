@@ -1,0 +1,31 @@
+{
+  "name": "vm-2026",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@eslint/eslintrc": "latest",
+    "@tailwindcss/forms": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "autoprefixer": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "postcss": "latest",
+    "tailwindcss": "^3.4.17",
+    "typescript": "latest"
+  }
+}
