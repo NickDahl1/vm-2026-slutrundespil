@@ -11,6 +11,10 @@ type PredSummary = {
   points_outcome: number;
 };
 
+type RankEntry = {
+  rank: number;
+};
+
 function formatDeadline(iso: string): string {
   return new Date(iso).toLocaleString("da-DK", {
     timeZone: "UTC",
@@ -36,7 +40,9 @@ export default async function DashboardPage({
     { count: predictionCount },
     { data: settingsData },
     { data: finishedMatchData },
-    { data: userPredData }
+    { data: userPredData },
+    { data: rankData },
+    { count: participantCount }
   ] = await Promise.all([
     supabase.from("matches").select("*", { count: "exact", head: true }),
     supabase
@@ -52,13 +58,23 @@ export default async function DashboardPage({
     supabase
       .from("match_predictions")
       .select("match_id, total_points, points_outcome")
+      .eq("user_id", user.id),
+    supabase
+      .from("leaderboard_view" as never)
+      .select("rank")
       .eq("user_id", user.id)
+      .single(),
+    supabase
+      .from("leaderboard_view" as never)
+      .select("*", { count: "exact", head: true })
   ]);
 
   const settings = settingsData as AppSettings | null;
   const total = matchCount ?? 0;
   const submitted = predictionCount ?? 0;
   const missing = Math.max(0, total - submitted);
+  const myRank = (rankData as RankEntry | null)?.rank ?? null;
+  const participants = participantCount ?? 0;
 
   const finishedIds = new Set((finishedMatchData ?? []).map((m) => (m as { id: number }).id));
   const preds = (userPredData ?? []) as PredSummary[];
@@ -112,10 +128,10 @@ export default async function DashboardPage({
           value={String(missing)}
         />
         <StatCard
-          detail="Placering opdateres, når alle point er beregnet"
+          detail={`Af ${participants} ${participants === 1 ? "deltager" : "deltagere"} i alt`}
           label="Min placering"
-          tone="gold"
-          value="—"
+          tone={myRank !== null && myRank <= 3 ? "gold" : "neutral"}
+          value={myRank !== null ? `#${myRank}` : "—"}
         />
       </section>
     </div>

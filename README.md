@@ -210,3 +210,49 @@ where id = 'USER_UUID_HER';
 ```
 
 Du finder brugerens UUID i Supabase Auth Users eller i `public.profiles`.
+
+## Leaderboard
+
+Leaderboard vises på `/leaderboard` og er tilgængeligt for alle indloggede brugere.
+
+### Database: leaderboard_view
+
+Migrationen `20260520160000_leaderboard_view.sql` opretter en PostgreSQL-view `public.leaderboard_view`, der aggregerer point fra `match_predictions`.
+
+| Kolonne | Type | Beskrivelse |
+|---------|------|-------------|
+| `user_id` | uuid | Brugerens id |
+| `display_name` | text | Brugerens visningsnavn |
+| `match_points` | int | Point fra kampbud |
+| `total_points` | int | Samlet point (match_points; statement-point tilføjes senere) |
+| `perfect_results` | int | Antal kampbud med 3 point |
+| `correct_outcomes` | int | Antal bud med korrekt udfald |
+| `predictions_count` | int | Antal afgivne kampbud |
+| `rank` | int | Placering beregnet med tie-breaker |
+
+Viewet ejes af `postgres` og kører med view-ejerens rettigheder (bypasser RLS), så alle brugeres point kan aggregeres korrekt. `SELECT` er kun tildelt `authenticated`-rollen.
+
+### Tie-breaker
+
+Placeringer rangeres i denne rækkefølge:
+
+1. Flest `total_points` (faldende)
+2. Flest `perfect_results` (faldende)
+3. Flest `correct_outcomes` (faldende)
+4. `display_name` alfabetisk (stigende)
+
+### Brugerdetaljer
+
+Klik på en spiller på `/leaderboard` for at se `/leaderboard/[user_id]` med:
+- Spillerens placering og pointsammenfatning
+- Liste over afsluttede kampe med bud, resultat og pointnedbrydning
+
+Bud på igangværende eller planlagte kampe vises ikke (kun afsluttede kampe).
+
+### RLS: synlighed af bud
+
+Migrationen tilføjer en ekstra SELECT-policy på `match_predictions`:
+- Alle indloggede brugere kan læse bud for **afsluttede** kampe (til leaderboard-detaljevisning)
+- Egne bud kan altid læses uanset kampstatus (eksisterende policy)
+
+Statement-point er ikke implementeret endnu. Kolonnen `total_points` er lig `match_points` indtil videre og kan udvides uden at ændre view-interfacet.
