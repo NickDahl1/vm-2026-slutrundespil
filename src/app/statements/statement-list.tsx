@@ -92,6 +92,7 @@ function AnswerInput({
       }
       required
       type={statement.answer_type === "number" ? "number" : "text"}
+      {...(statement.answer_type === "number" ? { min: "0", step: "1" } : {})}
     />
   );
 }
@@ -252,7 +253,7 @@ export function StatementList({
             <p className="text-xs font-semibold text-slate-400">{deadlineLabel}</p>
           </div>
           {missing > 0 ? (
-            <span className="rounded-lg bg-cup-100 px-3 py-1.5 text-xs font-black text-cup-700">
+            <span className="rounded-lg bg-cup-100 px-3 py-1.5 text-xs font-black text-cup-500">
               {missing} mangler
             </span>
           ) : (
