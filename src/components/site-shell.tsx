@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { logoutAction } from "@/app/auth/actions";
+import { getUserWithProfile } from "@/lib/auth";
 
 const primaryNavigation = [
   { href: "/", label: "Hjem" },
@@ -11,7 +13,12 @@ const primaryNavigation = [
   { href: "/admin", label: "Admin" }
 ];
 
-export function SiteShell({ children }: { children: ReactNode }) {
+export async function SiteShell({ children }: { children: ReactNode }) {
+  const { user, profile } = await getUserWithProfile();
+  const navigation = user
+    ? primaryNavigation.filter((item) => item.href !== "/admin" || profile?.is_admin)
+    : primaryNavigation.filter((item) => item.href === "/");
+
   return (
     <div className="page-shell">
       <header className="sticky top-0 z-20 -mx-4 mb-5 border-b border-white/70 bg-white/80 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
@@ -30,23 +37,39 @@ export function SiteShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/login"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm"
-            >
-              Log ind
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-lg bg-cup-500 px-3 py-2 text-sm font-black text-slate-950 shadow-sm"
-            >
-              Opret
-            </Link>
-          </div>
+          {user ? (
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="hidden max-w-36 truncate text-sm font-bold text-slate-700 sm:block">
+                {profile?.display_name ?? "Spiller"}
+              </span>
+              <form action={logoutAction}>
+                <button
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm"
+                  type="submit"
+                >
+                  Log ud
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="flex shrink-0 items-center gap-2">
+              <Link
+                href="/login"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm"
+              >
+                Log ind
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-lg bg-cup-500 px-3 py-2 text-sm font-black text-slate-950 shadow-sm"
+              >
+                Opret
+              </Link>
+            </div>
+          )}
         </div>
         <nav className="mx-auto mt-3 flex max-w-5xl gap-2 overflow-x-auto pb-1">
-          {primaryNavigation.map((item) => (
+          {navigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}

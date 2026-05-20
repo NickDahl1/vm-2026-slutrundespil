@@ -1,7 +1,10 @@
 import { PageHeader } from "@/components/page-header";
+import { requireUser } from "@/lib/auth";
 import { leaderboard } from "@/lib/placeholders";
 
-export default function LeaderboardPage() {
+export default async function LeaderboardPage() {
+  await requireUser();
+
   return (
     <div className="space-y-5">
       <PageHeader

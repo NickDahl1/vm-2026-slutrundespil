@@ -1,7 +1,10 @@
 import { PageHeader } from "@/components/page-header";
 import { PlaceholderPanel } from "@/components/placeholder-panel";
+import { requireUser } from "@/lib/auth";
 
-export default function StatisticsPage() {
+export default async function StatisticsPage() {
+  await requireUser();
+
   return (
     <div className="space-y-5">
       <PageHeader
