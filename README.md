@@ -48,12 +48,19 @@ npm run build
 
 Opret en `.env.local` baseret på `.env.example`:
 
-```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
+| Variabel | Beskrivelse | Påkrævet |
+|----------|-------------|----------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase projekt-URL | Ja |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key | Ja |
+| `SUPABASE_URL` | Supabase URL til sync-script | Ja (GitHub Actions) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key til sync-script | Ja (GitHub Actions) |
+| `FOOTBALL_API_KEY` | API-nøgle til football-data.org | Nej — stopper sikkert uden |
+| `ADMIN_EMAIL` | Email-adresse der modtager notifikationer fra kontaktformular | Nej — beskeder gemmes i DB uanset |
+| `EMAIL_FROM` | "From"-adresse i email-notifikationer | Nej |
+| `EMAIL_PROVIDER_API_KEY` | API-nøgle til email-provider (Resend m.fl.) | Nej |
+| `NEXT_PUBLIC_SITE_URL` | Appens public URL (bruges i email-links) | Nej |
 
-Disse variabler skal også ligge i Vercel. Appen bruger kun Supabase public URL og anon key. Adgangskoder gemmes aldrig i appens database og håndteres kun af Supabase Auth.
+Disse variabler skal også ligge i Vercel. Adgangskoder gemmes aldrig i appens database og håndteres kun af Supabase Auth.
 
 ## Automatisk resultatopdatering
 
@@ -488,3 +495,56 @@ Kræver migration `20260521140000_statements_sort_order_unique.sql` — køres v
 Alle udsagn kan afgøres manuelt af admin på `/admin/statements` ved turneringens afslutning.
 
 Pointlogikken for udsagn ligger i `src/lib/statement-scoring.ts` og er dækket af unit tests (`npm run test`).
+
+## Kontakt admin (kontaktformular)
+
+Brugere kan skrive direkte til admin via `/contact`. Beskeder gemmes i databasen og vises på `/admin/messages`.
+
+### Database: admin_contact_messages
+
+| Kolonne | Type | Beskrivelse |
+|---------|------|-------------|
+| `id` | bigint (identity) | Primærnøgle |
+| `user_id` | uuid | Reference til `profiles(id)` |
+| `subject` | text | Emne (maks 120 tegn) |
+| `message` | text | Besked (maks 2000 tegn) |
+| `status` | text | `new`, `read` eller `archived` |
+| `created_at` | timestamptz | Afsendelsestidspunkt |
+| `read_at` | timestamptz | Hvornår admin markerede som læst |
+
+**RLS:**
+- Brugere kan oprette og læse egne beskeder
+- Admin kan læse og opdatere alle beskeder (markere læst / arkivere)
+
+### Email-notifikation
+
+Når en bruger sender en besked, forsøger systemet at sende en email til admin.
+
+**Kræver disse env-variabler** (sæt i `.env.local` og Vercel):
+```
+ADMIN_EMAIL=din@email.dk
+EMAIL_FROM=VM 2026 <noreply@dinapp.dk>
+EMAIL_PROVIDER_API_KEY=din-nøgle
+NEXT_PUBLIC_SITE_URL=https://dinapp.dk
+```
+
+**Vigtige egenskaber:**
+- Beskeder gemmes i databasen **uanset** om email-notifikation er aktiv
+- Brugeren ser altid "Din besked er sendt" — email-fejl propagerer aldrig til brugeren
+- Hvis `ADMIN_EMAIL` eller `EMAIL_PROVIDER_API_KEY` ikke er sat, logges det server-side og returnerer stille
+
+**Email-provider implementering:**
+Åbn `src/lib/email.ts` og følg TODO-kommentaren for at tilslutte din provider (anbefalet: [Resend](https://resend.com) — gratis plan: 3.000 emails/md).
+
+```bash
+npm install resend
+```
+
+Derefter: uncomment og tilpas koden i `sendAdminNotification()`.
+
+### Admin-workflow
+
+1. Nye beskeder vises øverst på `/admin/messages` med "Ny"-badge
+2. Ulæste beskeder fremhæves med et banner på `/admin`-overblikssiden
+3. Klik "Markér som læst" — status skifter til "read", tidspunkt gemmes
+4. Klik "Arkiver" — besked flyttes til arkiv, forsvinder fra toppen
