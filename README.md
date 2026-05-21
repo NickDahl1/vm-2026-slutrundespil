@@ -55,6 +55,110 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 Disse variabler skal også ligge i Vercel. Appen bruger kun Supabase public URL og anon key. Adgangskoder gemmes aldrig i appens database og håndteres kun af Supabase Auth.
 
+## Automatisk resultatopdatering
+
+Kampresultater opdateres automatisk via et **GitHub Actions cron-job** der kører dagligt kl. 08:00 dansk tid (06:00 UTC).
+
+### Hvordan det virker
+
+```
+GitHub Actions (kl. 08:00 CEST / 06:00 UTC)
+  → scripts/sync-results.ts
+    → Henter kampresultater fra datakilde (API eller mock)
+    → Matcher mod matches-tabellen via external_match_id eller match_no
+    → Opdaterer home_score_90, away_score_90, status = "finished"
+    → Genberegner point for alle bud på opdaterede kampe
+    → Logger hvad der blev opdateret og hvad der blev sprunget over
+```
+
+### Sikkerhedsregler
+
+| Situation | Hvad scriptet gør |
+|---|---|
+| Kamp har `manually_corrected = true` | **Springer over** — admin-rettet resultat er ground truth |
+| Kamp er `postponed` eller `cancelled` | Springer over — rør ikke disse |
+| Ekstern data har `isFinished = false` | Springer over — live/ufærdig kamp |
+| Ugyldig score (null, negativ, decimal) | Springer over + logger advarsel |
+| Kamp allerede opdateret med samme resultat | Springer over — idempotent |
+| Ny eller ændret score | Opdaterer + genberegner point |
+
+### Manuel kontrol / manuelt rettede resultater
+
+Når en admin gemmer et kampresultat via `/admin/matches` sættes `manually_corrected = true` automatisk. Det betyder at auto-sync **aldrig overskriver** resultatet bagefter.
+
+Vil du re-aktivere auto-sync for en kamp (fx fordi du har rettet en fejl), klik **"Tillad auto-sync"** på kampkortet i admin-panelet.
+
+### Datakilde — nuværende status
+
+**Aktuelt: Mock-data** (`scripts/mock-results.json`)
+
+VM 2026 starter juni 2026. Indtil da er det rigtige API ikke implementeret.
+
+**Planlagt API: football-data.org (gratis plan)**
+- 10 req/min, dækker FIFA World Cup, ingen registrering med betalingskort
+- Endpoint: `GET /v4/competitions/WC/matches?season=2026&status=FINISHED`
+- Stable match-IDs der mappes til `matches.external_match_id`
+
+Se `scripts/adapters/football-data.ts` for implementeringsvejledning og kodetemplate.
+
+### GitHub Secrets
+
+Sæt disse i **Settings → Secrets and variables → Actions**:
+
+| Secret | Beskrivelse | Krævet |
+|---|---|---|
+| `SUPABASE_URL` | Supabase projekt-URL, fx `https://xxx.supabase.co` | Ja |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key fra Supabase → Settings → API | Ja |
+| `FOOTBALL_API_KEY` | API-nøgle fra football-data.org (gratis) | Nej — brug mock indtil turneringen starter |
+
+> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` omgår RLS og har fuld adgang til databasen.
+> Den må **aldrig** eksponeres i browseren, i klientkode eller committes til Git.
+
+### Køre sync-jobbet manuelt
+
+**Via GitHub Actions UI:**
+1. Gå til **Actions → Sync VM 2026 Results**
+2. Klik **Run workflow**
+3. Vælg evt. `dry_run=true` — logger hvad der ville ske, uden at skrive til databasen
+4. Vælg evt. `use_mock=true` — bruger `scripts/mock-results.json` frem for API
+
+**Lokalt:**
+```bash
+# Dry-run med mock-data (ingen database nødvendig):
+DRY_RUN=true USE_MOCK=true npm run sync:results
+
+# Kørsel med mock-data mod rigtig database:
+SUPABASE_URL=https://xxx.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=eyJ... \
+USE_MOCK=true \
+npm run sync:results
+
+# Kørsel med football-data.org (når implementeret):
+SUPABASE_URL=https://xxx.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=eyJ... \
+FOOTBALL_API_KEY=din-nøgle \
+npm run sync:results
+```
+
+### Hvad opdateres automatisk
+
+- `matches.home_score_90` og `away_score_90` — mål efter 90 minutter
+- `matches.status` → `"finished"`
+- `match_predictions.points_*` og `total_points` — genberegnes for alle bud
+
+**Opdateres IKKE automatisk:**
+- Forlænget spilletid / straffespark (spillet bruger kun 90-minutters resultat)
+- Udsagn/bonus-svar — afgøres manuelt af admin
+- Kampe med `manually_corrected = true`
+
+### Tilpasning til nyt API
+
+1. Opret `scripts/adapters/mit-api.ts` og implementér `MatchResultAdapter`-interfacet
+2. Brug adapteren i `scripts/sync-results.ts` (der hvor adapteren vælges)
+3. Tilføj evt. ny env-variabel til `.env.example` og GitHub Secrets
+
+---
+
 ## Supabase schema
 
 Kør migrationerne i Supabase SQL Editor eller via Supabase CLI:
@@ -87,7 +191,8 @@ Tabellen `matches` indeholder alle VM-kampe.
 | `home_score_90` | int (nullable) | Hjemmemål efter 90 min |
 | `away_score_90` | int (nullable) | Udemål efter 90 min |
 | `status` | text | `scheduled`, `live`, `finished`, `postponed`, `cancelled` |
-| `external_match_id` | text (nullable) | Til fremtidig API-integration |
+| `external_match_id` | text (nullable) | Stabilt ID fra ekstern datakilde — bruges af auto-sync |
+| `manually_corrected` | boolean | `true` hvis admin har rettet resultatet manuelt — auto-sync springer disse over |
 | `created_at` | timestamptz | Oprettelsestidspunkt |
 | `updated_at` | timestamptz | Sidst opdateret (auto-trigger) |
 
