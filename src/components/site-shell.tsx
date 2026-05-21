@@ -10,7 +10,8 @@ const primaryNavigation = [
   { href: "/statements", label: "Udsagn" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/statistics", label: "Statistik" },
-  { href: "/admin", label: "Admin" }
+  { href: "/rules", label: "Regler" },
+  { href: "/admin", label: "Admin" },
 ];
 
 export async function SiteShell({ children }: { children: ReactNode }) {
