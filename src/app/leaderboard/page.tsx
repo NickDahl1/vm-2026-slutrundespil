@@ -73,11 +73,13 @@ export default async function LeaderboardPage() {
                   <div className="mt-1 flex flex-wrap gap-1">
                     {entry.match_points > 0 || entry.statement_points > 0 ? (
                       <>
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-500">
-                          {entry.match_points}K
-                        </span>
+                        {entry.match_points > 0 && (
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-500">
+                            {entry.match_points}K
+                          </span>
+                        )}
                         {entry.statement_points > 0 && (
-                          <span className="rounded bg-cup-100 px-1.5 py-0.5 text-xs font-bold text-cup-700">
+                          <span className="rounded bg-cup-100 px-1.5 py-0.5 text-xs font-bold text-cup-500">
                             {entry.statement_points}U
                           </span>
                         )}

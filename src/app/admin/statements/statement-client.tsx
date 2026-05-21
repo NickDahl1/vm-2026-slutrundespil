@@ -139,7 +139,7 @@ function ResolveForm({
   onCancel: () => void;
 }) {
   return (
-    <form action={resolveStatementAction} className="card space-y-4 border-pitch-200 bg-pitch-50">
+    <form action={resolveStatementAction} className="card space-y-4 border-pitch-100 bg-pitch-50">
       <input name="id" type="hidden" value={statement.id} />
       <div>
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
@@ -184,7 +184,7 @@ export function AdminStatementsClient({
   answerCounts
 }: {
   statements: Statement[];
-  answerCounts: Map<number, number>;
+  answerCounts: Record<number, number>;
 }) {
   const [mode, setMode] = useState<Mode>("list");
   const [editing, setEditing] = useState<Statement | null>(null);
@@ -237,7 +237,7 @@ export function AdminStatementsClient({
         </div>
       ) : (
         statements.map((s) => {
-          const count = answerCounts.get(s.id) ?? 0;
+          const count = answerCounts[s.id] ?? 0;
           const isDeleting = pendingDelete === s.id;
 
           return (

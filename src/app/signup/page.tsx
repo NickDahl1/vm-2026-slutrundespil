@@ -13,9 +13,9 @@ export default async function SignupPage({
   return (
     <div className="space-y-5">
       <PageHeader
+        description="Opret din konto og kom med i slutrundespillet."
         eyebrow="Konto"
         title="Opret spiller"
-        description="Oprettelse skal senere gå gennem Supabase Auth. Adgangskoder gemmes aldrig i klartekst."
       />
 
       <form action={signUpAction} className="card space-y-4">
@@ -23,7 +23,7 @@ export default async function SignupPage({
         <label className="block">
           <span className="text-sm font-bold text-slate-700">Visningsnavn</span>
           <input
-            className="mt-1 w-full rounded-lg border-slate-300 bg-white"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
             maxLength={40}
             minLength={2}
             name="displayName"
@@ -38,7 +38,7 @@ export default async function SignupPage({
         <label className="block">
           <span className="text-sm font-bold text-slate-700">Email</span>
           <input
-            className="mt-1 w-full rounded-lg border-slate-300 bg-white"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
             name="email"
             placeholder="din@email.dk"
             required
@@ -48,7 +48,7 @@ export default async function SignupPage({
         <label className="block">
           <span className="text-sm font-bold text-slate-700">Adgangskode</span>
           <input
-            className="mt-1 w-full rounded-lg border-slate-300 bg-white"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
             name="password"
             placeholder="Vælg en adgangskode"
             required

@@ -1,32 +1,62 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useReducer } from "react";
 import type { Match, Prediction, AppSettings } from "@/lib/types";
 import { STATUS_LABELS, PHASE_LABELS } from "@/lib/types";
-import { upsertPredictionAction, type PredictionState } from "./actions";
+import { formatDanishDate, formatDanishTime, getDanishDateKey } from "@/lib/date-format";
+import { bulkUpsertPredictionsAction, type BulkPredictionState } from "./actions";
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("da-DK", {
-    timeZone: "UTC",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric"
-  });
+type MatchInput = { home: string; away: string };
+
+type FormState = {
+  inputValues: Record<number, MatchInput>;
+  savedIds: Set<number>;
+  dirtyIds: Set<number>;
+};
+
+type FormAction =
+  | { type: "edit"; matchId: number; home: string; away: string }
+  | { type: "saved"; savedMatchIds: number[] };
+
+function formReducer(state: FormState, action: FormAction): FormState {
+  switch (action.type) {
+    case "edit":
+      return {
+        ...state,
+        inputValues: { ...state.inputValues, [action.matchId]: { home: action.home, away: action.away } },
+        dirtyIds: new Set([...state.dirtyIds, action.matchId])
+      };
+    case "saved": {
+      const newDirty = new Set(state.dirtyIds);
+      for (const id of action.savedMatchIds) newDirty.delete(id);
+      return {
+        ...state,
+        dirtyIds: newDirty,
+        savedIds: new Set([...state.savedIds, ...action.savedMatchIds])
+      };
+    }
+  }
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("da-DK", {
-    timeZone: "UTC",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+function buildInitialFormState(predictions: Prediction[]): FormState {
+  const inputValues: Record<number, MatchInput> = {};
+  for (const p of predictions) {
+    inputValues[p.match_id] = {
+      home: String(p.predicted_home_score),
+      away: String(p.predicted_away_score)
+    };
+  }
+  return {
+    inputValues,
+    savedIds: new Set(predictions.map((p) => p.match_id)),
+    dirtyIds: new Set()
+  };
 }
 
-function groupByDate(matches: Match[]): [string, Match[]][] {
+function groupByDanishDate(matches: Match[]): [string, Match[]][] {
   const map = new Map<string, Match[]>();
   for (const match of matches) {
-    const key = match.kickoff_at.slice(0, 10);
+    const key = getDanishDateKey(match.kickoff_at);
     const group = map.get(key) ?? [];
     group.push(match);
     map.set(key, group);
@@ -47,15 +77,43 @@ function isMatchLocked(match: Match, settings: AppSettings | null): boolean {
   return false;
 }
 
-const statusColors: Record<Match["status"], string> = {
+type MatchStatus = "locked" | "saved" | "dirty" | "empty";
+
+function getMatchStatus(
+  match: Match,
+  input: MatchInput | undefined,
+  savedIds: Set<number>,
+  dirtyIds: Set<number>,
+  locked: boolean
+): MatchStatus {
+  if (locked || match.status === "finished") return "locked";
+  const filled = input?.home !== "" && input?.away !== "" && input !== undefined;
+  if (dirtyIds.has(match.id) && filled) return "dirty";
+  if (savedIds.has(match.id)) return "saved";
+  return "empty";
+}
+
+const STATUS_BADGE: Record<MatchStatus, string> = {
+  locked: "rounded px-2 py-0.5 text-xs font-black bg-slate-100 text-slate-400",
+  saved: "rounded px-2 py-0.5 text-xs font-black bg-pitch-50 text-pitch-700",
+  dirty: "rounded px-2 py-0.5 text-xs font-black bg-cup-100 text-cup-500",
+  empty: "rounded px-2 py-0.5 text-xs font-black bg-slate-100 text-slate-500"
+};
+
+const STATUS_LABEL: Record<MatchStatus, string> = {
+  locked: "Låst",
+  saved: "Gemt",
+  dirty: "Ændret",
+  empty: "Ikke udfyldt"
+};
+
+const matchStatusColors: Record<Match["status"], string> = {
   scheduled: "text-slate-600",
   live: "text-pitch-700",
   finished: "text-slate-500",
   postponed: "text-cup-500",
   cancelled: "text-red-500"
 };
-
-const initialState: PredictionState = { status: "idle", message: "" };
 
 function PointRow({ label, correct }: { label: string; correct: boolean }) {
   return (
@@ -73,18 +131,9 @@ function PointBreakdown({ prediction }: { prediction: Prediction }) {
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1.5">
-          <PointRow
-            correct={prediction.points_home_score === 1}
-            label="Hjemmemål"
-          />
-          <PointRow
-            correct={prediction.points_away_score === 1}
-            label="Udemål"
-          />
-          <PointRow
-            correct={prediction.points_outcome === 1}
-            label="Udfald"
-          />
+          <PointRow correct={prediction.points_home_score === 1} label="Hjemmemål" />
+          <PointRow correct={prediction.points_away_score === 1} label="Udemål" />
+          <PointRow correct={prediction.points_outcome === 1} label="Udfald" />
         </div>
         <div className="text-right">
           <p className="text-2xl font-black text-slate-950">{prediction.total_points}</p>
@@ -98,19 +147,18 @@ function PointBreakdown({ prediction }: { prediction: Prediction }) {
 function MatchCard({
   match,
   prediction,
-  locked
+  input,
+  status,
+  onInputChange
 }: {
   match: Match;
   prediction: Prediction | undefined;
-  locked: boolean;
+  input: MatchInput | undefined;
+  status: MatchStatus;
+  onInputChange: (matchId: number, home: string, away: string) => void;
 }) {
-  const [state, formAction, isPending] = useActionState<PredictionState, FormData>(
-    upsertPredictionAction,
-    initialState
-  );
-
   const isFinished = match.status === "finished";
-  const showForm = !locked && !isFinished;
+  const isLocked = status === "locked";
   const hasResult = match.home_score_90 !== null && match.away_score_90 !== null;
 
   return (
@@ -121,9 +169,14 @@ function MatchCard({
           <span className="badge">{PHASE_LABELS[match.phase]}</span>
           {match.group_name && <span className="badge">{match.group_name}</span>}
         </div>
-        <span className={`text-xs font-black uppercase ${statusColors[match.status]}`}>
-          {STATUS_LABELS[match.status]}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-black uppercase ${matchStatusColors[match.status]}`}>
+            {STATUS_LABELS[match.status]}
+          </span>
+          {!isFinished && (
+            <span className={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</span>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
@@ -141,12 +194,12 @@ function MatchCard({
       </div>
 
       <p className="text-center text-xs font-semibold text-slate-500">
-        {formatTime(match.kickoff_at)} UTC
+        {formatDanishTime(match.kickoff_at)}
       </p>
 
       {isFinished && prediction && <PointBreakdown prediction={prediction} />}
 
-      {!showForm && !isFinished && (
+      {isLocked && !isFinished && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
           {prediction ? (
             <div className="flex items-center justify-between">
@@ -164,59 +217,41 @@ function MatchCard({
         </div>
       )}
 
-      {showForm && (
-        <form action={formAction} className="space-y-3">
-          <input name="match_id" type="hidden" value={match.id} />
-
-          <div className="space-y-1">
-            <p className="text-xs font-bold text-slate-700">Dit bud</p>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-black text-slate-950 focus:border-pitch-700 focus:outline-none"
-                defaultValue={prediction?.predicted_home_score ?? ""}
-                min="0"
-                name="predicted_home_score"
-                placeholder="0"
-                required
-                type="number"
-              />
-              <span className="text-sm font-black text-slate-400">–</span>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-black text-slate-950 focus:border-pitch-700 focus:outline-none"
-                defaultValue={prediction?.predicted_away_score ?? ""}
-                min="0"
-                name="predicted_away_score"
-                placeholder="0"
-                required
-                type="number"
-              />
-            </div>
+      {!isLocked && !isFinished && (
+        <div className="space-y-1">
+          <p className="text-xs font-bold text-slate-700">Dit bud</p>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-black text-slate-950 focus:border-pitch-700 focus:outline-none"
+              min="0"
+              onChange={(e) => onInputChange(match.id, e.target.value, input?.away ?? "")}
+              placeholder="0"
+              step="1"
+              type="number"
+              value={input?.home ?? ""}
+            />
+            <span className="text-sm font-black text-slate-400">–</span>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-black text-slate-950 focus:border-pitch-700 focus:outline-none"
+              min="0"
+              onChange={(e) => onInputChange(match.id, input?.home ?? "", e.target.value)}
+              placeholder="0"
+              step="1"
+              type="number"
+              value={input?.away ?? ""}
+            />
           </div>
-
-          <button
-            className="w-full rounded-lg bg-pitch-700 px-4 py-2.5 text-sm font-black text-white shadow-sm disabled:opacity-60"
-            disabled={isPending}
-            type="submit"
-          >
-            {isPending ? "Gemmer..." : "Gem bud"}
-          </button>
-
-          {state.status === "success" && (
-            <p className="text-center text-xs font-black text-pitch-700">✓ {state.message}</p>
-          )}
-          {state.status === "error" && (
-            <p className="text-center text-xs font-bold text-red-600">{state.message}</p>
-          )}
-          {state.status === "idle" && !prediction && (
-            <p className="text-center text-xs font-semibold text-slate-400">
-              Du mangler at afgive bud
-            </p>
-          )}
-        </form>
+        </div>
       )}
     </article>
   );
 }
+
+const initialBulkState: BulkPredictionState = {
+  status: "idle",
+  message: "",
+  savedMatchIds: []
+};
 
 export function MatchList({
   matches,
@@ -227,8 +262,65 @@ export function MatchList({
   predictions: Prediction[];
   settings: AppSettings | null;
 }) {
-  const predMap = new Map(predictions.map((p) => [p.match_id, p]));
-  const grouped = groupByDate(matches);
+  const [bulkState, formAction, isPending] = useActionState<BulkPredictionState, FormData>(
+    bulkUpsertPredictionsAction,
+    initialBulkState
+  );
+
+  const [formState, dispatch] = useReducer(
+    formReducer,
+    predictions,
+    buildInitialFormState
+  );
+
+  const { inputValues, savedIds, dirtyIds } = formState;
+
+  // Sync successful save result into form state
+  useEffect(() => {
+    if (bulkState.status === "success" && bulkState.savedMatchIds.length > 0) {
+      dispatch({ type: "saved", savedMatchIds: bulkState.savedMatchIds });
+    }
+  }, [bulkState]);
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    if (dirtyIds.size === 0) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirtyIds]);
+
+  function handleInputChange(matchId: number, home: string, away: string) {
+    dispatch({ type: "edit", matchId, home, away });
+  }
+
+  const grouped = groupByDanishDate(matches);
+
+  // Collect dirty + filled predictions to submit
+  const dirtyPredictions = [...dirtyIds]
+    .map((id) => {
+      const inp = inputValues[id];
+      if (!inp || inp.home === "" || inp.away === "") return null;
+      const home = parseInt(inp.home, 10);
+      const away = parseInt(inp.away, 10);
+      if (isNaN(home) || isNaN(away)) return null;
+      return { match_id: id, home, away };
+    })
+    .filter(Boolean);
+
+  // Progress summary
+  const unlocked = matches.filter(
+    (m) => !isMatchLocked(m, settings) && m.status !== "finished"
+  );
+  const filledCount = unlocked.filter((m) => {
+    const inp = inputValues[m.id];
+    const hasInput = inp && inp.home !== "" && inp.away !== "";
+    return savedIds.has(m.id) || hasInput;
+  }).length;
+  const missingCount = unlocked.length - filledCount;
+  const unsavedCount = dirtyPredictions.length;
 
   if (matches.length === 0) {
     return (
@@ -242,25 +334,101 @@ export function MatchList({
     );
   }
 
+  const saveButtonLabel = isPending
+    ? "Gemmer..."
+    : dirtyPredictions.length > 0
+      ? `Gem ${dirtyPredictions.length} kampbud`
+      : "Gem alle kampbud";
+
+  const predictionsJson = JSON.stringify(dirtyPredictions);
+
   return (
-    <div className="space-y-6">
-      {grouped.map(([, dayMatches]) => (
-        <section key={dayMatches[0].kickoff_at.slice(0, 10)}>
-          <h2 className="mb-3 text-xs font-black uppercase tracking-wide text-pitch-700">
-            {formatDate(dayMatches[0].kickoff_at)}
-          </h2>
-          <div className="space-y-3">
-            {dayMatches.map((match) => (
-              <MatchCard
-                key={match.id}
-                locked={isMatchLocked(match, settings)}
-                match={match}
-                prediction={predMap.get(match.id)}
-              />
-            ))}
+    <div className="space-y-5">
+      {/* Progress summary */}
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-black text-slate-950">
+              {filledCount} af {unlocked.length} kampbud udfyldt
+            </p>
+            {missingCount > 0 && (
+              <p className="mt-0.5 text-xs font-semibold text-slate-400">
+                {missingCount} mangler
+              </p>
+            )}
           </div>
-        </section>
-      ))}
+          {unsavedCount > 0 && (
+            <span className="rounded bg-cup-100 px-2 py-0.5 text-xs font-black text-cup-500">
+              {unsavedCount} ændring{unsavedCount === 1 ? "" : "er"} ikke gemt
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Top save button */}
+      <form action={formAction}>
+        <input name="predictions" type="hidden" value={predictionsJson} />
+        <button
+          className="w-full rounded-lg bg-pitch-700 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50"
+          disabled={isPending || dirtyPredictions.length === 0}
+          type="submit"
+        >
+          {saveButtonLabel}
+        </button>
+        {bulkState.status === "success" && (
+          <p className="mt-2 text-center text-xs font-black text-pitch-700">
+            ✓ {bulkState.message}
+          </p>
+        )}
+        {bulkState.status === "error" && (
+          <p className="mt-2 text-center text-xs font-bold text-red-600">
+            {bulkState.message}
+          </p>
+        )}
+      </form>
+
+      {/* Match list grouped by Danish date */}
+      <div className="space-y-6">
+        {grouped.map(([dateKey, dayMatches]) => (
+          <section key={dateKey}>
+            <h2 className="mb-3 text-xs font-black uppercase tracking-wide text-pitch-700">
+              {formatDanishDate(dayMatches[0].kickoff_at)}
+            </h2>
+            <div className="space-y-3">
+              {dayMatches.map((match) => {
+                const locked = isMatchLocked(match, settings);
+                const prediction = predictions.find((p) => p.match_id === match.id);
+                const input = inputValues[match.id];
+                const status = getMatchStatus(match, input, savedIds, dirtyIds, locked);
+                return (
+                  <MatchCard
+                    input={input}
+                    key={match.id}
+                    match={match}
+                    onInputChange={handleInputChange}
+                    prediction={prediction}
+                    status={status}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      {/* Bottom save button (only visible when there are unsaved changes) */}
+      {dirtyPredictions.length > 0 && (
+        <form action={formAction}>
+          <input name="predictions" type="hidden" value={predictionsJson} />
+          <button
+            className="w-full rounded-lg bg-pitch-700 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50"
+            disabled={isPending}
+            type="submit"
+          >
+            {saveButtonLabel}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

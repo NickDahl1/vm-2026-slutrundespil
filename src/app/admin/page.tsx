@@ -38,11 +38,11 @@ export default async function AdminPage() {
   const maxPossibleStatementAnswers = users * stmts;
   const missingStatementAnswers = Math.max(0, maxPossibleStatementAnswers - stmtAnswers);
 
-  const { data: resolvedData } = await supabase
+  const { count: resolvedCountRaw } = await supabase
     .from("statements")
-    .select("id", { count: "exact", head: false })
+    .select("*", { count: "exact", head: true })
     .eq("is_resolved", true);
-  const resolvedCount = resolvedData?.length ?? 0;
+  const resolvedCount = resolvedCountRaw ?? 0;
 
   return (
     <div className="space-y-5">
