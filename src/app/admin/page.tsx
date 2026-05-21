@@ -4,6 +4,7 @@ import { StatCard } from "@/components/stat-card";
 import { createClient } from "@/lib/supabase/server";
 
 const adminLinks = [
+  { href: "/admin/settings", label: "Spilindstillinger" },
   { href: "/admin/matches", label: "Administrer kampe" },
   { href: "/admin/statements", label: "Administrer udsagn" },
   { href: "/admin/users", label: "Administrer brugere" }

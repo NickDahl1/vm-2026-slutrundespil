@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { Statement, StatementPrediction, AppSettings } from "@/lib/types";
+import { formatDanishDateTime } from "@/lib/date-format";
 import {
   upsertStatementPredictionAction,
   type StatementState
@@ -231,19 +232,43 @@ export function StatementList({
   const total = statements.length;
   const missing = Math.max(0, total - answered);
 
+  const deadlinePassed =
+    settings?.group_stage_lock_at
+      ? new Date(settings.group_stage_lock_at) <= new Date()
+      : false;
+
   const deadlineLabel = settings?.group_stage_lock_at
-    ? `Frist: ${new Date(settings.group_stage_lock_at).toLocaleString("da-DK", {
-        timeZone: "UTC",
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
-      })} UTC`
+    ? deadlinePassed
+      ? `Låst siden ${formatDanishDateTime(settings.group_stage_lock_at)}`
+      : `Frist: ${formatDanishDateTime(settings.group_stage_lock_at)}`
     : "Ingen frist sat endnu";
 
   return (
     <div className="space-y-5">
+      {/* Lock / deadline banner */}
+      {settings?.game_locked ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <p className="font-black text-red-700">🔒 Udsagn er låst</p>
+          <p className="mt-0.5 text-sm font-semibold text-red-600">
+            Spillet er låst af admin. Ingen svar kan ændres.
+          </p>
+        </div>
+      ) : locked && deadlinePassed ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="font-black text-slate-700">🔒 Udsagn er låst</p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-500">
+            Fristen for udsagn er passeret.
+          </p>
+        </div>
+      ) : settings?.group_stage_lock_at && !locked ? (
+        <div className="rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-3">
+          <p className="text-sm font-semibold text-pitch-700">
+            Du kan svare på udsagn frem til{" "}
+            <strong>{formatDanishDateTime(settings.group_stage_lock_at)}</strong>.
+          </p>
+        </div>
+      ) : null}
+
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex items-center justify-between gap-4 text-sm">
           <div className="space-y-0.5">

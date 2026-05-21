@@ -3,6 +3,7 @@ import { StatCard } from "@/components/stat-card";
 import { FormMessage } from "@/components/form-message";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { formatDanishDateTime } from "@/lib/date-format";
 import type { AppSettings } from "@/lib/types";
 
 type PredSummary = {
@@ -17,17 +18,6 @@ type RankEntry = {
   statement_points: number;
   total_points: number;
 };
-
-function formatDeadline(iso: string): string {
-  return new Date(iso).toLocaleString("da-DK", {
-    timeZone: "UTC",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
 
 export default async function DashboardPage({
   searchParams
@@ -102,8 +92,17 @@ export default async function DashboardPage({
   const correctOutcomes = finishedPreds.filter((p) => p.points_outcome === 1).length;
   const myRank = entry?.rank ?? null;
 
+  const now = new Date();
+  const groupLocked =
+    settings?.game_locked ||
+    (settings?.group_stage_lock_at
+      ? new Date(settings.group_stage_lock_at) <= now
+      : false);
+
   const deadlineDetail = settings?.group_stage_lock_at
-    ? `Frist: ${formatDeadline(settings.group_stage_lock_at)} UTC`
+    ? groupLocked
+      ? `Låst siden ${formatDanishDateTime(settings.group_stage_lock_at)}`
+      : `Frist: ${formatDanishDateTime(settings.group_stage_lock_at)}`
     : "Ingen frist sat endnu";
 
   return (
@@ -114,6 +113,33 @@ export default async function DashboardPage({
         title={`Dashboard${profile?.display_name ? ` for ${profile.display_name}` : ""}`}
       />
       <FormMessage searchParams={params} />
+
+      {/* Lock / deadline status banner */}
+      {settings?.game_locked ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <p className="font-black text-red-700">🔒 Spillet er låst</p>
+          <p className="mt-0.5 text-sm font-semibold text-red-600">
+            Ingen kampbud eller udsagn kan ændres lige nu.
+          </p>
+        </div>
+      ) : groupLocked ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="font-black text-slate-700">🔒 Grundspilsbud er låst</p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-500">
+            Fristen passerede {settings?.group_stage_lock_at
+              ? formatDanishDateTime(settings.group_stage_lock_at)
+              : ""}.
+          </p>
+        </div>
+      ) : settings?.group_stage_lock_at ? (
+        <div className="rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-3">
+          <p className="font-black text-pitch-700">⏰ Spillet er åbent</p>
+          <p className="mt-0.5 text-sm font-semibold text-pitch-500">
+            Du kan afgive kampbud og udsagn frem til{" "}
+            <strong>{formatDanishDateTime(settings.group_stage_lock_at)}</strong>.
+          </p>
+        </div>
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
