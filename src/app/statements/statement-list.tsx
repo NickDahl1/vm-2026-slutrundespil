@@ -43,7 +43,7 @@ function AnswerInput({
     const opts =
       statement.answer_type === "yes_no" ? ["Ja", "Nej"] : ["Over", "Under"];
     return (
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex gap-2">
         {opts.map((opt) => (
           <label className="cursor-pointer" key={opt}>
             <input
@@ -54,7 +54,7 @@ function AnswerInput({
               type="radio"
               value={opt}
             />
-            <span className="flex items-center justify-center rounded-lg border-2 border-slate-200 bg-white py-2 text-sm font-black text-slate-500 peer-checked:border-pitch-700 peer-checked:bg-pitch-50 peer-checked:text-pitch-700">
+            <span className="flex h-10 min-w-[80px] items-center justify-center rounded-lg border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-500 peer-checked:border-pitch-700 peer-checked:bg-pitch-50 peer-checked:text-pitch-700">
               {opt}
             </span>
           </label>
@@ -116,14 +116,14 @@ function StatementCard({
   const showForm = !locked && !isResolved;
 
   return (
-    <article className="card space-y-3">
-      <div className="flex items-start gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-pitch-50 text-sm font-black text-pitch-700">
+    <article className="card space-y-2.5 py-3">
+      <div className="flex items-start gap-2.5">
+        <span className="grid size-7 shrink-0 place-items-center rounded bg-pitch-50 text-xs font-black text-pitch-700">
           {statement.sort_order}
         </span>
-        <div className="min-w-0 flex-1 space-y-1">
-          <h2 className="font-black text-slate-950">{statement.question}</h2>
-          <p className="text-xs font-semibold text-slate-400">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-black leading-snug text-slate-950">{statement.question}</h2>
+          <p className="mt-0.5 text-xs font-semibold text-slate-400">
             {ANSWER_TYPE_LABELS[statement.answer_type]}
           </p>
         </div>
@@ -177,37 +177,31 @@ function StatementCard({
       )}
 
       {showForm && (
-        <form action={formAction} className="space-y-3">
+        <form action={formAction}>
           <input name="statement_id" type="hidden" value={statement.id} />
 
-          <div className="space-y-1">
-            <p className="text-xs font-bold text-slate-700">Dit svar</p>
+          <div className="flex flex-wrap items-center gap-2">
             <AnswerInput
               defaultValue={prediction?.answer}
               statement={statement}
             />
+            <button
+              className="shrink-0 rounded-lg bg-pitch-700 px-4 py-2 text-sm font-black text-white shadow-sm disabled:opacity-60"
+              disabled={isPending}
+              type="submit"
+            >
+              {isPending ? "Gemmer…" : prediction ? "Opdater" : "Gem svar"}
+            </button>
           </div>
 
-          <button
-            className="w-full rounded-lg bg-pitch-700 px-4 py-2.5 text-sm font-black text-white shadow-sm disabled:opacity-60"
-            disabled={isPending}
-            type="submit"
-          >
-            {isPending ? "Gemmer..." : "Gem svar"}
-          </button>
-
           {state.status === "success" && (
-            <p className="text-center text-xs font-black text-pitch-700">
-              ✓ {state.message}
-            </p>
+            <p className="mt-1.5 text-xs font-black text-pitch-700">✓ {state.message}</p>
           )}
           {state.status === "error" && (
-            <p className="text-center text-xs font-bold text-red-600">
-              {state.message}
-            </p>
+            <p className="mt-1.5 text-xs font-bold text-red-600">{state.message}</p>
           )}
           {state.status === "idle" && !prediction && (
-            <p className="text-center text-xs font-semibold text-slate-400">
+            <p className="mt-1 text-xs font-semibold text-slate-400">
               Du mangler at afgive svar
             </p>
           )}

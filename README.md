@@ -90,15 +90,21 @@ Vil du re-aktivere auto-sync for en kamp (fx fordi du har rettet en fejl), klik 
 
 ### Datakilde — nuværende status
 
-**Aktuelt: Ingen datakilde konfigureret**
+**Aktuelt: Ingen datakilde konfigureret — det er fint**
 
-VM 2026 starter juni 2026. Indtil turneringen er i gang og `FOOTBALL_API_KEY` er sat, afslutter scriptet sikkert med:
+> 🔒 **Scriptet stopper sikkert uden API-nøgle.** Ingen databaseændringer foretages. Dette er den forventede adfærd, og GitHub Actions kræver ingen nøgle for at starte.
+
+VM 2026 starter juni 2026. Indtil `FOOTBALL_API_KEY` er sat, afslutter scriptet med:
 
 ```
 No real API key configured. Exiting without changes.
 ```
 
-Ingen databaseændringer foretages. Dette er den forventede opførsel.
+**Hvad det betyder i praksis:**
+- Resultater opdateres **ikke automatisk** — admin retter resultater manuelt på `/admin/matches`
+- GitHub Actions kører dagligt, men gør ingenting uden nøgle (ingen fejl, ingen databaseændringer)
+- Når turneringen starter: sæt `FOOTBALL_API_KEY` i GitHub Secrets (se nedenfor)
+- `/admin/release` viser auto-sync status baseret på om nøglen er konfigureret
 
 **Planlagt API: football-data.org (gratis plan)**
 - 10 req/min, dækker FIFA World Cup, ingen registrering med betalingskort
@@ -444,26 +450,41 @@ Brugere besvarer udsagn på `/statements` inden deadline (samme som `app_setting
 **Admin-afgørelse:**
 Admin går til `/admin/statements`, klikker "Afgør" på et udsagn, angiver det korrekte svar og klikker "Afgør og beregn point". Point beregnes automatisk for alle deltagere.
 
-## Forslag til 15 udsagn
+## De 15 standardudsagn (seed-fil)
 
-Disse kan indsættes manuelt via `/admin/statements`. De første 11 kan automatiseres ud fra kampdata; de sidste 4 kræver detaljeret kampstatistik.
+De 15 udsagn er klar i en idempotent seed-fil:
 
-| # | Spørgsmål | Type | Kan automatiseres |
-|---|-----------|------|-------------------|
-| 1 | Bliver der scoret over 100 mål i turneringen? | over_under | Ja |
-| 2 | Scorer Danmark mindst 5 mål i gruppespillet? | over_under | Ja |
-| 3 | Går Danmark videre fra gruppen? | yes_no | Ja |
-| 4 | Bliver finalen afgjort efter 90 minutter? | yes_no | Ja |
-| 5 | Kommer der mindst én 0-0 kamp? | yes_no | Ja |
-| 6 | Kommer der mindst én kamp med 5 eller flere mål? | yes_no | Ja |
-| 7 | Kommer der mindst én kamp hvor et hold scorer 4+ mål? | yes_no | Ja |
-| 8 | Bliver der flere end 10 uafgjorte kampe i gruppespillet? | over_under | Ja |
-| 9 | Kommer der mindst én kamp hvor et hold vinder med 3+ mål? | yes_no | Ja |
-| 10 | Scorer begge hold i åbningskampen? | yes_no | Ja |
-| 11 | Bliver vinderen fra Europa? | yes_no | Ja |
-| 12 | Bliver der scoret flere mål i 2. end 1. halvleg? | yes_no | Kræver halvlegsdata |
-| 13 | Bliver der over 5 straffespark i turneringen? | over_under | Kræver detaljeret data |
-| 14 | Bliver der over 5 røde kort i turneringen? | over_under | Kræver detaljeret data |
-| 15 | Hvem vinder VM 2026? | team | Ja |
+```
+supabase/seed/2026_default_statements.sql
+```
+
+**Kør seed-filen:**
+1. Åbn Supabase Dashboard → SQL Editor
+2. Indsæt indholdet af filen og klik **Run**
+3. Verificér med: `SELECT sort_order, question FROM statements ORDER BY sort_order;`
+
+Seed-filen er idempotent — den kan køres flere gange uden at slette brugerdata. Eksisterende afgjorte udsagn overskrives ikke.
+
+Kræver migration `20260521140000_statements_sort_order_unique.sql` — køres via `supabase db push`.
+
+| # | Spørgsmål | Type |
+|---|-----------|------|
+| 1 | Bliver der scoret over 100 mål i hele turneringen? | over_under |
+| 2 | Bliver der scoret over 40 mål i gruppespillet? | over_under |
+| 3 | Kommer der mindst én kamp, der ender 0-0? | yes_no |
+| 4 | Kommer der mindst én kamp med 5 eller flere mål? | yes_no |
+| 5 | Kommer der mindst én kamp, hvor et hold scorer 4 eller flere mål? | yes_no |
+| 6 | Bliver der flere end 10 uafgjorte kampe i gruppespillet? | yes_no |
+| 7 | Scorer Danmark mindst 5 mål i gruppespillet? | yes_no |
+| 8 | Går Danmark videre fra gruppen? | yes_no |
+| 9 | Bliver finalen afgjort efter 90 minutter? | yes_no |
+| 10 | Bliver der scoret af begge hold i åbningskampen? | yes_no |
+| 11 | Kommer der mindst én kamp, hvor et hold vinder med 3 eller flere mål? | yes_no |
+| 12 | Hvilket hold scorer flest mål i gruppespillet? | team |
+| 13 | Hvilket hold lukker færrest mål ind i gruppespillet? | team |
+| 14 | Bliver der flere hjemmesejre end udesejre i gruppespillet? | yes_no |
+| 15 | Bliver vinderen fra Europa? | yes_no |
+
+Alle udsagn kan afgøres manuelt af admin på `/admin/statements` ved turneringens afslutning.
 
 Pointlogikken for udsagn ligger i `src/lib/statement-scoring.ts` og er dækket af unit tests (`npm run test`).
