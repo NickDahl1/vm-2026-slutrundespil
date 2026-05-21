@@ -90,9 +90,15 @@ Vil du re-aktivere auto-sync for en kamp (fx fordi du har rettet en fejl), klik 
 
 ### Datakilde — nuværende status
 
-**Aktuelt: Mock-data** (`scripts/mock-results.json`)
+**Aktuelt: Ingen datakilde konfigureret**
 
-VM 2026 starter juni 2026. Indtil da er det rigtige API ikke implementeret.
+VM 2026 starter juni 2026. Indtil turneringen er i gang og `FOOTBALL_API_KEY` er sat, afslutter scriptet sikkert med:
+
+```
+No real API key configured. Exiting without changes.
+```
+
+Ingen databaseændringer foretages. Dette er den forventede opførsel.
 
 **Planlagt API: football-data.org (gratis plan)**
 - 10 req/min, dækker FIFA World Cup, ingen registrering med betalingskort
@@ -100,6 +106,9 @@ VM 2026 starter juni 2026. Indtil da er det rigtige API ikke implementeret.
 - Stable match-IDs der mappes til `matches.external_match_id`
 
 Se `scripts/adapters/football-data.ts` for implementeringsvejledning og kodetemplate.
+
+> ⚠️ **MockAdapter er ikke et fallback for GitHub Actions.**
+> Mock bruges kun, når `USE_MOCK=true` er sat eksplicit. Sæt aldrig `USE_MOCK=true` i GitHub Actions uden `DRY_RUN=false` (scriptet tvinger `DRY_RUN=true` automatisk hvis du glemmer det).
 
 ### GitHub Secrets
 
@@ -124,16 +133,22 @@ Sæt disse i **Settings → Secrets and variables → Actions**:
 
 **Lokalt:**
 ```bash
-# Dry-run med mock-data (ingen database nødvendig):
-DRY_RUN=true USE_MOCK=true npm run sync:results
+# Dry-run med mock-data — ingen database nødvendig, DRY_RUN er automatisk true:
+USE_MOCK=true npm run sync:results
 
-# Kørsel med mock-data mod rigtig database:
+# Dry-run mod rigtig database (ser hvad der VILLE ske, ingen ændringer):
 SUPABASE_URL=https://xxx.supabase.co \
 SUPABASE_SERVICE_ROLE_KEY=eyJ... \
 USE_MOCK=true \
 npm run sync:results
 
-# Kørsel med football-data.org (når implementeret):
+# Skriv mock-data til rigtig database (intentionel, kræver eksplicit DRY_RUN=false):
+SUPABASE_URL=https://xxx.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=eyJ... \
+USE_MOCK=true DRY_RUN=false \
+npm run sync:results
+
+# Rigtig kørsel med football-data.org (når implementeret):
 SUPABASE_URL=https://xxx.supabase.co \
 SUPABASE_SERVICE_ROLE_KEY=eyJ... \
 FOOTBALL_API_KEY=din-nøgle \

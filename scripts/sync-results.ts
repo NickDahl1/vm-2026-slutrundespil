@@ -278,8 +278,9 @@ async function syncResults(
 async function main() {
   log("=== VM 2026 result sync started ===");
 
-  const dryRun = process.env.DRY_RUN === "true";
-  if (dryRun) warn("DRY_RUN=true — no database writes will be made");
+  // dryRun is `let` — the mock path may upgrade it to true (see below).
+  // The "DRY_RUN set" log is deferred until after adapter selection.
+  let dryRun = process.env.DRY_RUN === "true";
 
   // ── Select adapter ───────────────────────────────────────────────────────
   let adapter: MatchResultAdapter;
@@ -288,20 +289,35 @@ async function main() {
   const useMock = process.env.USE_MOCK === "true";
 
   if (footballApiKey && !useMock) {
+    // ── Real API path ──────────────────────────────────────────────────────
     log("Adapter: FootballDataOrgAdapter");
     adapter = new FootballDataOrgAdapter(footballApiKey);
-  } else {
-    if (!useMock) {
+  } else if (useMock) {
+    // ── Explicit mock path ─────────────────────────────────────────────────
+    // MockAdapter is only allowed when USE_MOCK=true is set explicitly.
+    // To prevent test data reaching production by accident, DRY_RUN defaults
+    // to true when running in mock mode — unless DRY_RUN=false is set explicitly.
+    if (process.env.DRY_RUN !== "false") {
+      dryRun = true;
       warn(
-        "Neither USE_MOCK=true nor FOOTBALL_API_KEY is set. " +
-          "Falling back to MockAdapter. " +
-          "Set FOOTBALL_API_KEY in GitHub Secrets once the tournament starts."
+        "USE_MOCK=true: DRY_RUN forced to true. " +
+          "Mock data will NOT be written to the database. " +
+          "Set DRY_RUN=false explicitly if you intend to write mock data."
       );
-    } else {
-      log("Adapter: MockAdapter (USE_MOCK=true)");
     }
+    log("Adapter: MockAdapter (USE_MOCK=true)");
     adapter = new MockAdapter();
+  } else {
+    // ── No adapter available — exit cleanly ───────────────────────────────
+    // This is the expected state before the tournament starts and before
+    // FOOTBALL_API_KEY is configured in GitHub Secrets.
+    log("No real API key configured. Exiting without changes.");
+    log("To enable automatic result sync: set FOOTBALL_API_KEY in GitHub Secrets.");
+    log("To run a local dry-run with mock data: USE_MOCK=true npm run sync:results");
+    process.exit(0);
   }
+
+  if (dryRun) warn("DRY_RUN=true — no database writes will be made");
 
   // ── Fetch results ────────────────────────────────────────────────────────
   let results: ExternalMatchResult[];

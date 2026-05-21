@@ -57,9 +57,19 @@ jobs:
       # Secrets are injected via GitHub Actions Secrets (never committed).
       # SUPABASE_SERVICE_ROLE_KEY bypasses RLS — only used server-side here.
       #
-      # Until the tournament starts (and the football-data.org adapter is
-      # implemented), set USE_MOCK=true in the workflow_dispatch inputs or
-      # add it here as a fallback:  USE_MOCK: "true"
+      # ── Before the tournament starts ──────────────────────────────────────
+      # FOOTBALL_API_KEY will not be set yet. The script detects this and exits
+      # cleanly with: "No real API key configured. Exiting without changes."
+      # No database writes occur. This is the safe, expected behaviour.
+      #
+      # DO NOT add USE_MOCK=true here as a fallback — that would write test
+      # data to the production database on every scheduled run.
+      #
+      # To do a safe local dry-run with mock data:
+      #   USE_MOCK=true npm run sync:results   (DRY_RUN forced true automatically)
+      #
+      # To test mock data against the real database (intentional, rare):
+      #   USE_MOCK=true DRY_RUN=false npm run sync:results
       - name: Run result sync
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
