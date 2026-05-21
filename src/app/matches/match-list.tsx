@@ -2,7 +2,6 @@
 
 import { useActionState, useEffect, useReducer } from "react";
 import type { Match, Prediction, AppSettings } from "@/lib/types";
-import { STATUS_LABELS, PHASE_LABELS } from "@/lib/types";
 import { formatDanishDate, formatDanishTime, getDanishDateKey } from "@/lib/date-format";
 import { bulkUpsertPredictionsAction, type BulkPredictionState } from "./actions";
 
@@ -23,8 +22,11 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case "edit":
       return {
         ...state,
-        inputValues: { ...state.inputValues, [action.matchId]: { home: action.home, away: action.away } },
-        dirtyIds: new Set([...state.dirtyIds, action.matchId])
+        inputValues: {
+          ...state.inputValues,
+          [action.matchId]: { home: action.home, away: action.away },
+        },
+        dirtyIds: new Set([...state.dirtyIds, action.matchId]),
       };
     case "saved": {
       const newDirty = new Set(state.dirtyIds);
@@ -32,7 +34,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
       return {
         ...state,
         dirtyIds: newDirty,
-        savedIds: new Set([...state.savedIds, ...action.savedMatchIds])
+        savedIds: new Set([...state.savedIds, ...action.savedMatchIds]),
       };
     }
   }
@@ -43,13 +45,13 @@ function buildInitialFormState(predictions: Prediction[]): FormState {
   for (const p of predictions) {
     inputValues[p.match_id] = {
       home: String(p.predicted_home_score),
-      away: String(p.predicted_away_score)
+      away: String(p.predicted_away_score),
     };
   }
   return {
     inputValues,
     savedIds: new Set(predictions.map((p) => p.match_id)),
-    dirtyIds: new Set()
+    dirtyIds: new Set(),
   };
 }
 
@@ -87,69 +89,34 @@ function getMatchStatus(
   locked: boolean
 ): MatchStatus {
   if (locked || match.status === "finished") return "locked";
-  const filled = input?.home !== "" && input?.away !== "" && input !== undefined;
+  const filled = input !== undefined && input.home !== "" && input.away !== "";
   if (dirtyIds.has(match.id) && filled) return "dirty";
   if (savedIds.has(match.id)) return "saved";
   return "empty";
 }
 
-const STATUS_BADGE: Record<MatchStatus, string> = {
-  locked: "rounded px-2 py-0.5 text-xs font-black bg-slate-100 text-slate-400",
-  saved: "rounded px-2 py-0.5 text-xs font-black bg-pitch-50 text-pitch-700",
-  dirty: "rounded px-2 py-0.5 text-xs font-black bg-cup-100 text-cup-500",
-  empty: "rounded px-2 py-0.5 text-xs font-black bg-slate-100 text-slate-500"
-};
+// Compact per-row number input (suppresses browser spinners)
+const inputBase =
+  "h-10 w-11 rounded-lg border text-center text-base font-black text-slate-950 " +
+  "focus:outline-none [appearance:textfield] [-moz-appearance:textfield] " +
+  "[&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
-const STATUS_LABEL: Record<MatchStatus, string> = {
-  locked: "Låst",
-  saved: "Gemt",
-  dirty: "Ændret",
-  empty: "Ikke udfyldt"
-};
-
-const matchStatusColors: Record<Match["status"], string> = {
-  scheduled: "text-slate-600",
-  live: "text-pitch-700",
-  finished: "text-slate-500",
-  postponed: "text-cup-500",
-  cancelled: "text-red-500"
-};
-
-function PointRow({ label, correct }: { label: string; correct: boolean }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`text-xs font-black ${correct ? "text-pitch-700" : "text-slate-400"}`}>
-        {correct ? "✓" : "✗"}
-      </span>
-      <span className="text-xs font-semibold text-slate-600">{label}</span>
-    </div>
-  );
+function inputVariantCls(status: MatchStatus): string {
+  if (status === "dirty") return "border-cup-500 bg-cup-50 focus:border-cup-500";
+  if (status === "saved") return "border-pitch-700 bg-white focus:border-pitch-700";
+  return "border-slate-200 bg-white focus:border-pitch-700";
 }
 
-function PointBreakdown({ prediction }: { prediction: Prediction }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1.5">
-          <PointRow correct={prediction.points_home_score === 1} label="Hjemmemål" />
-          <PointRow correct={prediction.points_away_score === 1} label="Udemål" />
-          <PointRow correct={prediction.points_outcome === 1} label="Udfald" />
-        </div>
-        <div className="text-right">
-          <p className="text-2xl font-black text-slate-950">{prediction.total_points}</p>
-          <p className="text-xs font-semibold text-slate-500">point</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MatchCard({
+/**
+ * Compact tippekupon-style row for one match.
+ * Heights are ~44–52 px per row to keep the list scannable on mobile.
+ */
+function MatchRow({
   match,
   prediction,
   input,
   status,
-  onInputChange
+  onInputChange,
 }: {
   match: Match;
   prediction: Prediction | undefined;
@@ -159,113 +126,126 @@ function MatchCard({
 }) {
   const isFinished = match.status === "finished";
   const isLocked = status === "locked";
-  const hasResult = match.home_score_90 !== null && match.away_score_90 !== null;
 
   return (
-    <article className="card space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          <span className="badge">#{match.match_no}</span>
-          <span className="badge">{PHASE_LABELS[match.phase]}</span>
-          {match.group_name && <span className="badge">{match.group_name}</span>}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-black uppercase ${matchStatusColors[match.status]}`}>
-            {STATUS_LABELS[match.status]}
-          </span>
-          {!isFinished && (
-            <span className={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</span>
-          )}
-        </div>
+    <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-2.5 last:border-b-0">
+      {/* Match number + kickoff time */}
+      <div className="w-9 shrink-0 text-center">
+        <p className="text-xs font-black text-slate-500">#{match.match_no}</p>
+        <p className="mt-0.5 text-[10px] font-semibold leading-none text-slate-400">
+          {formatDanishTime(match.kickoff_at)}
+        </p>
       </div>
 
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
-        <p className="font-black text-slate-950">{match.home_team}</p>
-        {hasResult ? (
-          <span className="rounded-lg bg-slate-100 px-3 py-2 text-base font-black text-slate-950">
-            {match.home_score_90} – {match.away_score_90}
-          </span>
-        ) : (
-          <span className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-black text-slate-500">
-            vs
-          </span>
-        )}
-        <p className="font-black text-slate-950">{match.away_team}</p>
+      {/* Home / away team names (stacked, truncated) */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold leading-tight text-slate-950">
+          {match.home_team}
+        </p>
+        <p className="truncate text-sm font-semibold leading-tight text-slate-500">
+          {match.away_team}
+        </p>
       </div>
 
-      <p className="text-center text-xs font-semibold text-slate-500">
-        {formatDanishTime(match.kickoff_at)}
-      </p>
-
-      {isFinished && prediction && <PointBreakdown prediction={prediction} />}
-
-      {isLocked && !isFinished && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          {prediction ? (
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">Dit bud</span>
-              <span className="font-black text-slate-950">
-                {prediction.predicted_home_score} – {prediction.predicted_away_score}
-              </span>
-              <span className="badge">Låst</span>
-            </div>
-          ) : (
-            <p className="text-center text-sm font-semibold text-slate-500">
-              Fristen er passeret — ingen bud afgivet
+      {/* Right area: result / locked prediction / editable inputs */}
+      {isFinished ? (
+        /* Finished: actual score + user's prediction + points badge */
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="text-right">
+            <p className="text-sm font-black text-slate-950">
+              {match.home_score_90}&ndash;{match.away_score_90}
             </p>
+            {prediction && (
+              <p className="text-[10px] font-semibold text-slate-400">
+                bud: {prediction.predicted_home_score}&ndash;
+                {prediction.predicted_away_score}
+              </p>
+            )}
+          </div>
+          {prediction ? (
+            <span
+              className={`w-8 rounded px-1 py-0.5 text-center text-xs font-black ${
+                prediction.total_points === 3
+                  ? "bg-cup-100 text-cup-500"
+                  : prediction.total_points >= 1
+                    ? "bg-pitch-50 text-pitch-700"
+                    : "bg-slate-100 text-slate-400"
+              }`}
+            >
+              {prediction.total_points}p
+            </span>
+          ) : (
+            <span className="w-8 rounded bg-slate-100 px-1 py-0.5 text-center text-xs font-black text-slate-300">
+              —
+            </span>
           )}
         </div>
-      )}
-
-      {!isLocked && !isFinished && (
-        <div className="space-y-1">
-          <p className="text-xs font-bold text-slate-700">Dit bud</p>
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-black text-slate-950 focus:border-pitch-700 focus:outline-none"
-              min="0"
-              onChange={(e) => onInputChange(match.id, e.target.value, input?.away ?? "")}
-              placeholder="0"
-              step="1"
-              type="number"
-              value={input?.home ?? ""}
-            />
-            <span className="text-sm font-black text-slate-400">–</span>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-black text-slate-950 focus:border-pitch-700 focus:outline-none"
-              min="0"
-              onChange={(e) => onInputChange(match.id, input?.home ?? "", e.target.value)}
-              placeholder="0"
-              step="1"
-              type="number"
-              value={input?.away ?? ""}
-            />
-          </div>
+      ) : isLocked ? (
+        /* Locked: show saved prediction or dash */
+        <div className="shrink-0 text-right">
+          {prediction ? (
+            <p className="text-sm font-black text-slate-700">
+              {prediction.predicted_home_score}&ndash;
+              {prediction.predicted_away_score}
+            </p>
+          ) : (
+            <p className="text-sm font-black text-slate-300">—</p>
+          )}
+          <p className="mt-0.5 text-[10px] font-semibold text-slate-400">Låst</p>
+        </div>
+      ) : (
+        /* Editable: two number inputs */
+        <div className="flex shrink-0 items-center gap-1">
+          <input
+            className={`${inputBase} ${inputVariantCls(status)}`}
+            inputMode="numeric"
+            min="0"
+            onChange={(e) =>
+              onInputChange(match.id, e.target.value, input?.away ?? "")
+            }
+            placeholder="0"
+            step="1"
+            type="number"
+            value={input?.home ?? ""}
+          />
+          <span className="text-xs font-black text-slate-300">–</span>
+          <input
+            className={`${inputBase} ${inputVariantCls(status)}`}
+            inputMode="numeric"
+            min="0"
+            onChange={(e) =>
+              onInputChange(match.id, input?.home ?? "", e.target.value)
+            }
+            placeholder="0"
+            step="1"
+            type="number"
+            value={input?.away ?? ""}
+          />
         </div>
       )}
-    </article>
+    </div>
   );
 }
 
 const initialBulkState: BulkPredictionState = {
   status: "idle",
   message: "",
-  savedMatchIds: []
+  savedMatchIds: [],
 };
 
 export function MatchList({
   matches,
   predictions,
-  settings
+  settings,
 }: {
   matches: Match[];
   predictions: Prediction[];
   settings: AppSettings | null;
 }) {
-  const [bulkState, formAction, isPending] = useActionState<BulkPredictionState, FormData>(
-    bulkUpsertPredictionsAction,
-    initialBulkState
-  );
+  const [bulkState, formAction, isPending] = useActionState<
+    BulkPredictionState,
+    FormData
+  >(bulkUpsertPredictionsAction, initialBulkState);
 
   const [formState, dispatch] = useReducer(
     formReducer,
@@ -275,7 +255,7 @@ export function MatchList({
 
   const { inputValues, savedIds, dirtyIds } = formState;
 
-  // Sync successful save result into form state
+  // Sync successful save into local form state
   useEffect(() => {
     if (bulkState.status === "success" && bulkState.savedMatchIds.length > 0) {
       dispatch({ type: "saved", savedMatchIds: bulkState.savedMatchIds });
@@ -298,7 +278,7 @@ export function MatchList({
 
   const grouped = groupByDanishDate(matches);
 
-  // Collect dirty + filled predictions to submit
+  // Collect dirty + fully-filled predictions to submit
   const dirtyPredictions = [...dirtyIds]
     .map((id) => {
       const inp = inputValues[id];
@@ -343,65 +323,90 @@ export function MatchList({
   const predictionsJson = JSON.stringify(dirtyPredictions);
 
   return (
-    <div className="space-y-5">
-      {/* Progress summary */}
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-black text-slate-950">
-              {filledCount} af {unlocked.length} kampbud udfyldt
-            </p>
-            {missingCount > 0 && (
-              <p className="mt-0.5 text-xs font-semibold text-slate-400">
-                {missingCount} mangler
+    <div className="space-y-4">
+      {/* Progress summary + save button (sticky top area) */}
+      <div className="space-y-3">
+        {/* Progress bar */}
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-black text-slate-950">
+                {filledCount} af {unlocked.length} kampbud udfyldt
               </p>
+              {missingCount > 0 && (
+                <p className="mt-0.5 text-xs font-semibold text-slate-400">
+                  {missingCount} mangler
+                </p>
+              )}
+            </div>
+            {unsavedCount > 0 && (
+              <span className="rounded bg-cup-100 px-2 py-0.5 text-xs font-black text-cup-500">
+                {unsavedCount} ændring{unsavedCount === 1 ? "" : "er"} ikke gemt
+              </span>
             )}
           </div>
-          {unsavedCount > 0 && (
-            <span className="rounded bg-cup-100 px-2 py-0.5 text-xs font-black text-cup-500">
-              {unsavedCount} ændring{unsavedCount === 1 ? "" : "er"} ikke gemt
-            </span>
-          )}
         </div>
+
+        {/* Top save button */}
+        <form action={formAction}>
+          <input name="predictions" type="hidden" value={predictionsJson} />
+          <button
+            className="w-full rounded-lg bg-pitch-700 px-4 py-2.5 text-sm font-black text-white shadow-sm disabled:opacity-50"
+            disabled={isPending || dirtyPredictions.length === 0}
+            type="submit"
+          >
+            {saveButtonLabel}
+          </button>
+          {bulkState.status === "success" && (
+            <p className="mt-2 text-center text-xs font-black text-pitch-700">
+              ✓ {bulkState.message}
+            </p>
+          )}
+          {bulkState.status === "error" && (
+            <p className="mt-2 text-center text-xs font-bold text-red-600">
+              {bulkState.message}
+            </p>
+          )}
+        </form>
       </div>
 
-      {/* Top save button */}
-      <form action={formAction}>
-        <input name="predictions" type="hidden" value={predictionsJson} />
-        <button
-          className="w-full rounded-lg bg-pitch-700 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50"
-          disabled={isPending || dirtyPredictions.length === 0}
-          type="submit"
-        >
-          {saveButtonLabel}
-        </button>
-        {bulkState.status === "success" && (
-          <p className="mt-2 text-center text-xs font-black text-pitch-700">
-            ✓ {bulkState.message}
-          </p>
-        )}
-        {bulkState.status === "error" && (
-          <p className="mt-2 text-center text-xs font-bold text-red-600">
-            {bulkState.message}
-          </p>
-        )}
-      </form>
+      {/* Legend (hidden on mobile, shown sm+) */}
+      <div className="hidden items-center justify-end gap-3 text-xs font-semibold text-slate-400 sm:flex">
+        <span>
+          <span className="mr-1 inline-block h-2 w-2 rounded-sm border border-slate-200 bg-white" />
+          Ikke udfyldt
+        </span>
+        <span>
+          <span className="mr-1 inline-block h-2 w-2 rounded-sm border border-pitch-700 bg-white" />
+          Gemt
+        </span>
+        <span>
+          <span className="mr-1 inline-block h-2 w-2 rounded-sm border border-cup-500 bg-cup-50" />
+          Ændret
+        </span>
+      </div>
 
       {/* Match list grouped by Danish date */}
-      <div className="space-y-6">
+      <div className="space-y-4">
         {grouped.map(([dateKey, dayMatches]) => (
           <section key={dateKey}>
-            <h2 className="mb-3 text-xs font-black uppercase tracking-wide text-pitch-700">
+            <h2 className="mb-2 px-1 text-xs font-black uppercase tracking-wide text-pitch-700">
               {formatDanishDate(dayMatches[0].kickoff_at)}
             </h2>
-            <div className="space-y-3">
+            <div className="card overflow-hidden p-0">
               {dayMatches.map((match) => {
                 const locked = isMatchLocked(match, settings);
                 const prediction = predictions.find((p) => p.match_id === match.id);
                 const input = inputValues[match.id];
-                const status = getMatchStatus(match, input, savedIds, dirtyIds, locked);
+                const status = getMatchStatus(
+                  match,
+                  input,
+                  savedIds,
+                  dirtyIds,
+                  locked
+                );
                 return (
-                  <MatchCard
+                  <MatchRow
                     input={input}
                     key={match.id}
                     match={match}
@@ -416,12 +421,12 @@ export function MatchList({
         ))}
       </div>
 
-      {/* Bottom save button (only visible when there are unsaved changes) */}
+      {/* Bottom save button (shown when there are unsaved changes) */}
       {dirtyPredictions.length > 0 && (
         <form action={formAction}>
           <input name="predictions" type="hidden" value={predictionsJson} />
           <button
-            className="w-full rounded-lg bg-pitch-700 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50"
+            className="w-full rounded-lg bg-pitch-700 px-4 py-2.5 text-sm font-black text-white shadow-sm disabled:opacity-50"
             disabled={isPending}
             type="submit"
           >

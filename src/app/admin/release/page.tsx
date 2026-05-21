@@ -89,6 +89,9 @@ export default async function AdminReleasePage({
 
   const settings = settingsData as AppSettings | null;
 
+  // Auto-sync: check server-side env (never exposed to browser)
+  const footballApiKeyConfigured = !!process.env.FOOTBALL_API_KEY;
+
   const checks: ReleaseCheck[] = [
     checkMatchCount(matchCount ?? 0),
     checkStatementCount(statementCount ?? 0),
@@ -148,6 +151,46 @@ export default async function AdminReleasePage({
         {checks.map((check) => (
           <CheckRow check={check} key={check.label} />
         ))}
+      </section>
+
+      {/* Auto-sync status */}
+      <section className="card space-y-3">
+        <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+          Auto-sync status
+        </p>
+        {footballApiKeyConfigured ? (
+          <div className="rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-3 space-y-1">
+            <p className="font-black text-pitch-700">✓ Auto-sync aktiv</p>
+            <p className="text-sm font-semibold text-pitch-600">
+              FOOTBALL_API_KEY er sat. GitHub Actions kører dagligt kl. 08:00 CEST.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+            <p className="font-black text-amber-700">⚠ Auto-sync ikke aktiv</p>
+            <div className="space-y-1 text-sm font-semibold text-amber-700">
+              <p>
+                <span className="font-black">Årsag:</span> FOOTBALL_API_KEY er ikke sat i GitHub Secrets.
+              </p>
+              <p>
+                <span className="font-black">Mock-data:</span> Deaktiveret som automatisk fallback — synkronisering stopper sikkert uden API-nøgle.
+              </p>
+              <p>
+                <span className="font-black">GitHub Action:</span> Konfigureret og klar — kører dagligt kl. 08:00 CEST, men gør ingenting uden nøgle.
+              </p>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-white px-3 py-2.5">
+              <p className="text-xs font-black text-amber-700">Hvad betyder det?</p>
+              <p className="mt-1 text-xs font-semibold text-amber-600">
+                Resultater opdateres <strong>ikke automatisk</strong>, før en rigtig API-nøgle er sat op i GitHub
+                Secrets (FOOTBALL_API_KEY). Indtil da kan admin rette resultater manuelt på{" "}
+                <strong>/admin/matches</strong>. Se{" "}
+                <code className="rounded bg-amber-100 px-1 text-[11px]">README.md</code>{" "}
+                for instruktioner til at sætte nøglen op.
+              </p>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Summary numbers */}
