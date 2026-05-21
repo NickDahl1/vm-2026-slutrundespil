@@ -15,7 +15,8 @@
     "@supabase/supabase-js": "latest",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.0.0",
@@ -29,8 +30,8 @@
     "eslint-config-next": "latest",
     "postcss": "latest",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.3",
     "typescript": "latest",
-    "vitest": "^4.1.7",
-    "tsx": "^4.19.3"
+    "vitest": "^4.1.7"
   }
 }
