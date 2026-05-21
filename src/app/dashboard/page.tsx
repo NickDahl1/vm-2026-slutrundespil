@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { FormMessage } from "@/components/form-message";
@@ -190,6 +191,18 @@ export default async function DashboardPage({
           value={String(missingStatements)}
         />
       </section>
+
+      {/* Contact admin CTA */}
+      <Link
+        className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 hover:bg-slate-100"
+        href="/contact"
+      >
+        <div>
+          <p className="text-sm font-black text-slate-700">Har du spørgsmål?</p>
+          <p className="text-xs font-semibold text-slate-500">Kontakt admin direkte i appen</p>
+        </div>
+        <span className="text-sm font-black text-pitch-700">→</span>
+      </Link>
     </div>
   );
 }

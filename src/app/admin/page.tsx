@@ -10,6 +10,7 @@ const adminLinks = [
   { href: "/admin/users", label: "Administrer brugere" },
   { href: "/admin/release", label: "Release-tjekliste" },
   { href: "/admin/export", label: "Eksporter data" },
+  { href: "/admin/messages", label: "Beskeder fra spillere" },
 ];
 
 export default async function AdminPage() {
@@ -20,13 +21,18 @@ export default async function AdminPage() {
     { count: matchCount },
     { count: predictionCount },
     { count: statementCount },
-    { count: statementAnswerCount }
+    { count: statementAnswerCount },
+    { count: unreadMessagesCount },
   ] = await Promise.all([
     supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("matches").select("*", { count: "exact", head: true }),
     supabase.from("match_predictions").select("*", { count: "exact", head: true }),
     supabase.from("statements").select("*", { count: "exact", head: true }),
-    supabase.from("statement_predictions").select("*", { count: "exact", head: true })
+    supabase.from("statement_predictions").select("*", { count: "exact", head: true }),
+    supabase
+      .from("admin_contact_messages")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "new"),
   ]);
 
   const users = userCount ?? 0;
@@ -96,6 +102,18 @@ export default async function AdminPage() {
           value={String(missingStatementAnswers)}
         />
       </section>
+
+      {(unreadMessagesCount ?? 0) > 0 && (
+        <Link
+          className="flex items-center justify-between rounded-lg border border-cup-200 bg-cup-50 px-4 py-3"
+          href="/admin/messages"
+        >
+          <span className="text-sm font-black text-cup-500">
+            ✉ {unreadMessagesCount} ulæst{(unreadMessagesCount ?? 0) === 1 ? "" : "e"} besked{(unreadMessagesCount ?? 0) === 1 ? "" : "er"} fra spillere
+          </span>
+          <span className="text-xs font-black text-cup-400">Se →</span>
+        </Link>
+      )}
 
       <section className="grid gap-3 sm:grid-cols-3">
         {adminLinks.map((link) => (

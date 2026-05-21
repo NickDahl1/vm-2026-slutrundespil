@@ -11,6 +11,7 @@ const primaryNavigation = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/statistics", label: "Statistik" },
   { href: "/rules", label: "Regler" },
+  { href: "/contact", label: "Kontakt" },
   { href: "/admin", label: "Admin" },
 ];
 
