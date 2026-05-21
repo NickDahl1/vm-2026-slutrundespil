@@ -1,0 +1,70 @@
+name: Sync VM 2026 Results
+
+# ── Schedule ──────────────────────────────────────────────────────────────────
+# Runs every day at 06:00 UTC = 08:00 CEST (Danish summer time, UTC+2).
+# VM 2026 runs June–July 2026, fully within CEST, so 06:00 UTC is correct.
+# If the tournament schedule ever has late-night games (e.g. 22:00 CEST = 00:00 UTC),
+# consider adding a second run at e.g. 00:30 UTC.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+
+  # Allow running manually from the Actions tab in GitHub.
+  # Use the "use_mock" input to test without a real API key.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no database writes)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      use_mock:
+        description: "Use mock data instead of real API"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync match results
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Run the sync script ────────────────────────────────────────────────
+      # Secrets are injected via GitHub Actions Secrets (never committed).
+      # SUPABASE_SERVICE_ROLE_KEY bypasses RLS — only used server-side here.
+      #
+      # Until the tournament starts (and the football-data.org adapter is
+      # implemented), set USE_MOCK=true in the workflow_dispatch inputs or
+      # add it here as a fallback:  USE_MOCK: "true"
+      - name: Run result sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          USE_MOCK: ${{ github.event.inputs.use_mock || 'false' }}
+        run: npm run sync:results

@@ -10,6 +10,7 @@ export type Match = {
   away_score_90: number | null;
   status: "scheduled" | "live" | "finished" | "postponed" | "cancelled";
   external_match_id: string | null;
+  manually_corrected: boolean;
   created_at: string;
   updated_at: string;
 };

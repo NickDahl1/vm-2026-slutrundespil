@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sync:results": "tsx scripts/sync-results.ts"
   },
   "dependencies": {
     "@supabase/ssr": "latest",
@@ -29,6 +30,7 @@
     "postcss": "latest",
     "tailwindcss": "^3.4.17",
     "typescript": "latest",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "tsx": "^4.19.3"
   }
 }

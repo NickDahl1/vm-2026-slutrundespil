@@ -7,7 +7,8 @@ import { formatDanishDateTime } from "@/lib/date-format";
 import {
   createMatchAction,
   updateMatchAction,
-  deleteMatchAction
+  deleteMatchAction,
+  resetManuallyCorrectedAction
 } from "./actions";
 
 type Mode = "list" | "create" | "edit";
@@ -280,6 +281,11 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
                   <p className="mt-1 text-xs font-semibold text-slate-500">
                     {formatDanishDateTime(match.kickoff_at)} · {STATUS_LABELS[match.status]}
                   </p>
+                  {match.manually_corrected && (
+                    <p className="mt-1 text-xs font-semibold text-amber-600">
+                      🔒 Manuelt rettet — auto-sync deaktiveret
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -304,7 +310,7 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
                   </form>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm"
                     onClick={() => startEdit(match)}
@@ -319,6 +325,17 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
                   >
                     Slet
                   </button>
+                  {match.manually_corrected && (
+                    <form action={resetManuallyCorrectedAction}>
+                      <input name="id" type="hidden" value={match.id} />
+                      <button
+                        className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700 shadow-sm"
+                        type="submit"
+                      >
+                        Tillad auto-sync
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
             </article>

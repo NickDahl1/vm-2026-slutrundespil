@@ -116,6 +116,11 @@ export async function updateMatchAction(formData: FormData) {
     withError("Udfyld alle påkrævede felter.");
   }
 
+  // If the admin is explicitly saving scores, flag the match as manually corrected
+  // so the nightly sync job does not silently overwrite their result.
+  const manuallyCorrected =
+    homeScore !== null && awayScore !== null ? true : undefined;
+
   const { error } = await supabase
     .from("matches")
     .update({
@@ -127,7 +132,8 @@ export async function updateMatchAction(formData: FormData) {
       kickoff_at: kickoffAt,
       home_score_90: homeScore,
       away_score_90: awayScore,
-      status
+      status,
+      ...(manuallyCorrected !== undefined ? { manually_corrected: manuallyCorrected } : {})
     })
     .eq("id", id);
 
@@ -160,6 +166,24 @@ export async function deleteMatchAction(formData: FormData) {
   revalidatePath("/admin/matches");
   revalidatePath("/matches");
   withMessage("Kampen er slettet.");
+}
+
+export async function resetManuallyCorrectedAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const id = readOptionalInt(formData, "id");
+  if (!id) withError("Ugyldig kamp.");
+
+  const { error } = await supabase
+    .from("matches")
+    .update({ manually_corrected: false })
+    .eq("id", id);
+
+  if (error) withError("Kunne ikke nulstille auto-sync-flaget. Prøv igen.");
+
+  revalidatePath("/admin/matches");
+  withMessage("Auto-sync er genaktiveret for denne kamp.");
 }
 
 export async function recalculateAllPointsAction(_formData: FormData) {

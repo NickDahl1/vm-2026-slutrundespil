@@ -1,0 +1,23 @@
+[
+  {
+    "externalId": "WC2026-M001",
+    "homeScore90": 2,
+    "awayScore90": 1,
+    "isFinished": true,
+    "matchNo": 1
+  },
+  {
+    "externalId": "WC2026-M002",
+    "homeScore90": 0,
+    "awayScore90": 0,
+    "isFinished": true,
+    "matchNo": 2
+  },
+  {
+    "externalId": "WC2026-M003",
+    "homeScore90": 3,
+    "awayScore90": 2,
+    "isFinished": true,
+    "matchNo": 3
+  }
+]
