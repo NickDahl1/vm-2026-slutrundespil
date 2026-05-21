@@ -7,7 +7,9 @@ const adminLinks = [
   { href: "/admin/settings", label: "Spilindstillinger" },
   { href: "/admin/matches", label: "Administrer kampe" },
   { href: "/admin/statements", label: "Administrer udsagn" },
-  { href: "/admin/users", label: "Administrer brugere" }
+  { href: "/admin/users", label: "Administrer brugere" },
+  { href: "/admin/release", label: "Release-tjekliste" },
+  { href: "/admin/export", label: "Eksporter data" },
 ];
 
 export default async function AdminPage() {
