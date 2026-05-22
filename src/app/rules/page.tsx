@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 
 export default function RulesPage() {
@@ -8,6 +9,16 @@ export default function RulesPage() {
         eyebrow="VM 2026 Slutrundespil"
         title="Regler"
       />
+
+      <section className="rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-3">
+        <p className="text-sm font-semibold text-pitch-900">
+          Vil du vide, hvordan navn, email, bud og point bruges?{" "}
+          <Link className="font-black text-pitch-700" href="/privacy">
+            Læs om privatliv og data
+          </Link>
+          .
+        </p>
+      </section>
 
       {/* Kampbud */}
       <section className="card space-y-4">

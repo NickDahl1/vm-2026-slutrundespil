@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 import { logoutAction } from "@/app/auth/actions";
 import { getUserWithProfile } from "@/lib/auth";
 
-const guestNavigation = [{ href: "/", label: "Hjem" }];
+const guestNavigation = [
+  { href: "/", label: "Hjem" },
+  { href: "/privacy", label: "Privatliv" },
+];
 
 const userNavigation = [
   { href: "/dashboard", label: "Hjem" },
@@ -13,6 +16,7 @@ const userNavigation = [
   { href: "/predictions", label: "Alles bud" },
   { href: "/statistics", label: "Statistik" },
   { href: "/rules", label: "Regler" },
+  { href: "/privacy", label: "Privatliv" },
   { href: "/contact", label: "Kontakt" },
 ];
 
