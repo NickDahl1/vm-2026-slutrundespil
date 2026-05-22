@@ -15,22 +15,16 @@ export default async function LeaderboardUserPage({
   const { user_id } = await params;
   const supabase = await createClient();
 
-  const [{ data: profileData }, { data: entryData }, { data: predData }] =
-    await Promise.all([
-      supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user_id)
-        .single(),
-      supabase
-        .from("leaderboard_view" as never)
-        .select("*")
-        .eq("user_id", user_id)
-        .single(),
-      supabase
-        .from("match_predictions")
-        .select(
-          `id,
+  const [{ data: entryData }, { data: predData }] = await Promise.all([
+    supabase
+      .from("leaderboard_view" as never)
+      .select("*")
+      .eq("user_id", user_id)
+      .single(),
+    supabase
+      .from("match_predictions")
+      .select(
+        `id,
            predicted_home_score,
            predicted_away_score,
            points_home_score,
@@ -43,14 +37,14 @@ export default async function LeaderboardUserPage({
              home_score_90, away_score_90,
              status, kickoff_at
            )`
-        )
-        .eq("user_id", user_id)
-        .order("match_id", { ascending: true })
-    ]);
-
-  if (!profileData) notFound();
+      )
+      .eq("user_id", user_id)
+      .order("match_id", { ascending: true })
+  ]);
 
   const entry = entryData as LeaderboardEntry | null;
+  if (!entry) notFound();
+
   const allPreds = (predData ?? []) as unknown as PredWithMatch[];
   const finishedPreds = allPreds.filter((p) => p.matches?.status === "finished");
   const isMe = user.id === user_id;
@@ -71,7 +65,7 @@ export default async function LeaderboardUserPage({
             : "Ingen point endnu"
         }
         eyebrow={entry ? `Placering #${entry.rank}` : "Placering —"}
-        title={profileData.display_name + (isMe ? " (dig)" : "")}
+        title={entry.display_name + (isMe ? " (dig)" : "")}
       />
 
       {finishedPreds.length === 0 ? (
