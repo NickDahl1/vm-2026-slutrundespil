@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { FormMessage } from "@/components/form-message";
+import { PrivacyNote } from "@/components/privacy-note";
 import { signUpAction } from "@/app/auth/actions";
 
 export default async function SignupPage({
@@ -20,6 +21,7 @@ export default async function SignupPage({
 
       <form action={signUpAction} className="card space-y-4">
         <FormMessage searchParams={params} />
+        <PrivacyNote />
         <label className="block">
           <span className="text-sm font-bold text-slate-700">Visningsnavn</span>
           <input
