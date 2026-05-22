@@ -1,0 +1,21 @@
+{
+  "name": "VM 2026 Slutrundespil",
+  "short_name": "VM 2026",
+  "description": "Slutrundespil til VM 2026",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5fbf7",
+  "theme_color": "#147d43",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
