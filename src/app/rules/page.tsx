@@ -122,6 +122,59 @@ export default function RulesPage() {
         </ul>
       </section>
 
+      {/* Startskærm */}
+      <section className="card space-y-4">
+        <h2 className="text-lg font-black text-slate-950">📱 Sæt appen på din startskærm</h2>
+        <p className="text-sm font-semibold text-slate-600">
+          Du kan bruge spillet som en app direkte fra din telefons startskærm — uden at åbne en browser.
+          Det tager 10 sekunder.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 rounded-lg bg-slate-50 px-4 py-3">
+            <p className="font-black text-slate-800">iPhone / iPad (Safari)</p>
+            <ol className="space-y-1 text-sm font-semibold text-slate-600">
+              <li className="flex gap-2">
+                <span className="shrink-0 font-black text-pitch-700">1.</span>
+                Åbn siden i Safari (ikke Chrome/Firefox)
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 font-black text-pitch-700">2.</span>
+                Tryk på <strong>Del-knappen</strong> ☐↑ i bunden af skærmen
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 font-black text-pitch-700">3.</span>
+                Rul ned og tryk <strong>&ldquo;Føj til hjemskærm&rdquo;</strong>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 font-black text-pitch-700">4.</span>
+                Tryk <strong>&ldquo;Tilføj&rdquo;</strong> øverst til højre
+              </li>
+            </ol>
+          </div>
+          <div className="space-y-2 rounded-lg bg-slate-50 px-4 py-3">
+            <p className="font-black text-slate-800">Android (Chrome)</p>
+            <ol className="space-y-1 text-sm font-semibold text-slate-600">
+              <li className="flex gap-2">
+                <span className="shrink-0 font-black text-pitch-700">1.</span>
+                Åbn siden i Chrome
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 font-black text-pitch-700">2.</span>
+                Tryk på de <strong>tre prikker</strong> ⋮ øverst til højre
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 font-black text-pitch-700">3.</span>
+                Tryk <strong>&ldquo;Føj til startskærm&rdquo;</strong>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 font-black text-pitch-700">4.</span>
+                Bekræft med <strong>&ldquo;Tilføj&rdquo;</strong>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
       {/* Praktisk */}
       <section className="card space-y-4">
         <h2 className="text-lg font-black text-slate-950">Praktisk</h2>

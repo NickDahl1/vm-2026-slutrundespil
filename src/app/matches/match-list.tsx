@@ -142,7 +142,7 @@ function MatchRow({
         <p className="truncate text-sm font-bold leading-tight text-slate-950">
           {match.home_team}
         </p>
-        <p className="truncate text-sm font-semibold leading-tight text-slate-500">
+        <p className="truncate text-sm font-bold leading-tight text-slate-950">
           {match.away_team}
         </p>
       </div>

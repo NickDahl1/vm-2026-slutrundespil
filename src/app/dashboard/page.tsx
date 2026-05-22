@@ -192,6 +192,18 @@ export default async function DashboardPage({
         />
       </section>
 
+      {/* Home screen CTA */}
+      <Link
+        className="flex items-center justify-between rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-3 hover:bg-pitch-100"
+        href="/rules#startskærm"
+      >
+        <div>
+          <p className="text-sm font-black text-pitch-700">📱 Sæt appen på din startskærm</p>
+          <p className="text-xs font-semibold text-pitch-500">Åbn som app — tager 10 sekunder</p>
+        </div>
+        <span className="text-sm font-black text-pitch-700">→</span>
+      </Link>
+
       {/* Contact admin CTA */}
       <Link
         className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 hover:bg-slate-100"

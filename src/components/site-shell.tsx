@@ -3,23 +3,27 @@ import type { ReactNode } from "react";
 import { logoutAction } from "@/app/auth/actions";
 import { getUserWithProfile } from "@/lib/auth";
 
-const primaryNavigation = [
-  { href: "/", label: "Hjem" },
-  { href: "/dashboard", label: "Dashboard" },
+const guestNavigation = [{ href: "/", label: "Hjem" }];
+
+const userNavigation = [
+  { href: "/dashboard", label: "Hjem" },
   { href: "/matches", label: "Kampe" },
   { href: "/statements", label: "Udsagn" },
   { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/predictions", label: "Alles bud" },
   { href: "/statistics", label: "Statistik" },
   { href: "/rules", label: "Regler" },
   { href: "/contact", label: "Kontakt" },
-  { href: "/admin", label: "Admin" },
 ];
 
 export async function SiteShell({ children }: { children: ReactNode }) {
   const { user, profile } = await getUserWithProfile();
   const navigation = user
-    ? primaryNavigation.filter((item) => item.href !== "/admin" || profile?.is_admin)
-    : primaryNavigation.filter((item) => item.href === "/");
+    ? [
+        ...userNavigation,
+        ...(profile?.is_admin ? [{ href: "/admin", label: "Admin" }] : []),
+      ]
+    : guestNavigation;
 
   return (
     <div className="page-shell">

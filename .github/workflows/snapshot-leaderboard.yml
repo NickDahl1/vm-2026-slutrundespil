@@ -1,0 +1,52 @@
+name: Snapshot leaderboard
+
+# ── Schedule ──────────────────────────────────────────────────────────────────
+# Runs every day at 07:00 UTC = 09:00 CEST (Danish summer time, UTC+2).
+# Takes a daily leaderboard snapshot for the rank-over-time chart on /statistics.
+on:
+  schedule:
+    - cron: "0 7 * * *"
+
+  # Allow running manually from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no database writes)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    name: Snapshot leaderboard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # SUPABASE_SERVICE_ROLE_KEY bypasses RLS — only used server-side here.
+      # Secrets are set in GitHub Actions Secrets, never committed to the repo.
+      - name: Run snapshot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: npx tsx scripts/snapshot-leaderboard.ts
