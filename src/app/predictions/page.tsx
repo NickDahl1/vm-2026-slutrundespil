@@ -1,11 +1,10 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { formatDanishDate } from "@/lib/date-format";
+import { formatDanishDateTime } from "@/lib/date-format";
 import { calcMatchStats, isPredictionsEligible } from "@/lib/prediction-stats";
 import type { Match, Statement } from "@/lib/types";
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 type Profile = { id: string; display_name: string; is_admin: boolean };
 
@@ -24,40 +23,94 @@ type StmtPredRow = {
   points: number;
 };
 
-function outcomeLabel(home: number, away: number): string {
-  if (home > away) return "H";
-  if (home < away) return "U";
-  return "U";
+type PredictionsTab = "matches" | "statements";
+
+const tabs: { id: PredictionsTab; label: string; href: string }[] = [
+  { id: "matches", label: "Kampbud", href: "/predictions?tab=matches" },
+  { id: "statements", label: "Udsagn", href: "/predictions?tab=statements" }
+];
+
+function firstValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
-function predBg(
+function selectedTab(value: string | string[] | undefined): PredictionsTab {
+  return firstValue(value) === "statements" ? "statements" : "matches";
+}
+
+function outcomeLabel(home: number, away: number): string {
+  if (home > away) return "Hjemme";
+  if (home < away) return "Ude";
+  return "Uafgjort";
+}
+
+function predictionResultClass(
   pred: { home: number; away: number },
   match: Match
 ): string {
-  if (match.status !== "finished") return "";
-  const h = match.home_score_90 ?? -1;
-  const a = match.away_score_90 ?? -1;
+  if (
+    match.status !== "finished" ||
+    match.home_score_90 === null ||
+    match.away_score_90 === null
+  ) {
+    return "bg-slate-100 text-slate-600";
+  }
+
+  const h = match.home_score_90;
+  const a = match.away_score_90;
   if (pred.home === h && pred.away === a) return "bg-cup-100 text-cup-500";
+
   const correctOutcome =
     (h > a && pred.home > pred.away) ||
     (h === a && pred.home === pred.away) ||
     (h < a && pred.home < pred.away);
+
   if (correctOutcome) return "bg-pitch-50 text-pitch-700";
   return "bg-slate-100 text-slate-400";
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+function TabNav({ activeTab }: { activeTab: PredictionsTab }) {
+  return (
+    <nav
+      aria-label="Vælg type af bud"
+      className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+    >
+      {tabs.map((tab) => {
+        const isActive = tab.id === activeTab;
+        return (
+          <Link
+            aria-current={isActive ? "page" : undefined}
+            className={`rounded-md px-4 py-2.5 text-center text-sm font-black transition ${
+              isActive
+                ? "bg-pitch-700 text-white shadow-sm"
+                : "text-slate-500 hover:bg-slate-50 hover:text-slate-950"
+            }`}
+            href={tab.href}
+            key={tab.id}
+          >
+            {tab.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
-export default async function PredictionsPage() {
+export default async function PredictionsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const activeTab = selectedTab(params.tab);
   const { user, profile } = await requireUser();
   const supabase = await createClient();
 
-  // ── Access gate checks ────────────────────────────────────────────────────
   const [
     { count: totalMatches },
     { count: myMatchPreds },
     { count: totalStmts },
-    { count: myStmtPreds },
+    { count: myStmtPreds }
   ] = await Promise.all([
     supabase.from("matches").select("*", { count: "exact", head: true }),
     supabase
@@ -68,7 +121,7 @@ export default async function PredictionsPage() {
     supabase
       .from("statement_predictions")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id),
+      .eq("user_id", user.id)
   ]);
 
   const isAdmin = profile?.is_admin ?? false;
@@ -83,6 +136,7 @@ export default async function PredictionsPage() {
   if (!isEligible) {
     const missingMatches = Math.max(0, (totalMatches ?? 0) - (myMatchPreds ?? 0));
     const missingStmts = Math.max(0, (totalStmts ?? 0) - (myStmtPreds ?? 0));
+
     return (
       <div className="space-y-5">
         <PageHeader
@@ -90,40 +144,58 @@ export default async function PredictionsPage() {
           eyebrow="Alles bud"
           title="Bud og udsagn"
         />
-        <div className="card space-y-4 py-8 text-center">
-          <p className="text-3xl">🔒</p>
-          <p className="font-black text-slate-950">
-            Afgiv alle dine bud for at låse op
-          </p>
-          <p className="text-sm font-semibold text-slate-500">
-            Du kan se alles kampbud og udsagn, når du selv har afgivet alle dine.
-          </p>
-          <div className="mx-auto max-w-xs space-y-2">
-            {missingMatches > 0 && (
-              <div className="flex items-center justify-between rounded-lg bg-cup-50 px-4 py-2">
-                <span className="text-sm font-semibold text-cup-500">Manglende kampbud</span>
-                <span className="font-black text-cup-500">{missingMatches}</span>
-              </div>
-            )}
-            {missingStmts > 0 && (
-              <div className="flex items-center justify-between rounded-lg bg-cup-50 px-4 py-2">
-                <span className="text-sm font-semibold text-cup-500">Manglende udsagn</span>
-                <span className="font-black text-cup-500">{missingStmts}</span>
-              </div>
-            )}
+
+        <div className="card space-y-5 py-8 text-center">
+          <div>
+            <p className="text-3xl">🔒</p>
+            <p className="mt-3 font-black text-slate-950">
+              Afgiv alle dine bud for at låse op
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-500">
+              Du kan se alles kampbud og udsagn, når du selv har afgivet alle dine.
+            </p>
+          </div>
+
+          <div className="mx-auto grid max-w-sm gap-2">
+            <div className="flex items-center justify-between rounded-lg bg-cup-50 px-4 py-2">
+              <span className="text-sm font-semibold text-cup-500">
+                Manglende kampbud
+              </span>
+              <span className="font-black text-cup-500">{missingMatches}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-cup-50 px-4 py-2">
+              <span className="text-sm font-semibold text-cup-500">
+                Manglende udsagn
+              </span>
+              <span className="font-black text-cup-500">{missingStmts}</span>
+            </div>
+          </div>
+
+          <div className="mx-auto grid max-w-sm gap-2 sm:grid-cols-2">
+            <Link
+              className="rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-2 text-sm font-black text-pitch-700"
+              href="/matches"
+            >
+              Gå til kampbud
+            </Link>
+            <Link
+              className="rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-2 text-sm font-black text-pitch-700"
+              href="/statements"
+            >
+              Gå til udsagn
+            </Link>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Fetch all data ─────────────────────────────────────────────────────────
   const [
     { data: matchesData },
     { data: profilesData },
     { data: allMatchPredsData },
     { data: statementsData },
-    { data: allStmtPredsData },
+    { data: allStmtPredsData }
   ] = await Promise.all([
     supabase
       .from("matches")
@@ -142,9 +214,7 @@ export default async function PredictionsPage() {
       .from("statements")
       .select("*")
       .order("sort_order", { ascending: true }),
-    supabase
-      .from("statement_predictions")
-      .select("user_id, statement_id, answer, points"),
+    supabase.from("statement_predictions").select("user_id, statement_id, answer, points")
   ]);
 
   const matches = (matchesData ?? []) as Match[];
@@ -153,23 +223,14 @@ export default async function PredictionsPage() {
   const statements = (statementsData ?? []) as Statement[];
   const stmtPreds = (allStmtPredsData ?? []) as StmtPredRow[];
 
-  // Build lookup maps
   const matchPredMap = new Map<string, MatchPredRow>();
   for (const p of matchPreds) {
     matchPredMap.set(`${p.user_id}:${p.match_id}`, p);
   }
+
   const stmtPredMap = new Map<string, StmtPredRow>();
   for (const p of stmtPreds) {
     stmtPredMap.set(`${p.user_id}:${p.statement_id}`, p);
-  }
-
-  // Group matches by date
-  const matchesByDate = new Map<string, Match[]>();
-  for (const m of matches) {
-    const d = m.kickoff_at.slice(0, 10);
-    const group = matchesByDate.get(d) ?? [];
-    group.push(m);
-    matchesByDate.set(d, group);
   }
 
   return (
@@ -180,215 +241,272 @@ export default async function PredictionsPage() {
         title="Bud og udsagn"
       />
 
-      {/* ── Match predictions ──────────────────────────────────────────────── */}
-      <section className="space-y-4">
-        <h2 className="text-base font-black text-slate-950">Kampbud</h2>
+      <TabNav activeTab={activeTab} />
 
-        <div className="space-y-4">
-          {[...matchesByDate.entries()].map(([date, dayMatches]) => (
-            <div key={date}>
-              <h3 className="mb-2 px-1 text-xs font-black uppercase tracking-wide text-pitch-700">
-                {formatDanishDate(dayMatches[0].kickoff_at)}
-              </h3>
-              <div className="card overflow-hidden p-0">
-                {dayMatches.map((match) => {
-                  // Collect all predictions for this match
-                  const predsForMatch = participants
-                    .map((p) => {
-                      const pred = matchPredMap.get(`${p.id}:${match.id}`);
-                      return pred ? { participant: p, pred } : null;
-                    })
-                    .filter(Boolean) as {
-                    participant: Profile;
-                    pred: MatchPredRow;
-                  }[];
+      {activeTab === "matches" ? (
+        <section className="space-y-4">
+          {matches.length === 0 ? (
+            <div className="card py-10 text-center">
+              <p className="font-black text-slate-950">Ingen kampe fundet</p>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Kampbud vises her, når kampene er oprettet.
+              </p>
+            </div>
+          ) : (
+            matches.map((match) => {
+              const predsForMatch = participants
+                .map((participant) => {
+                  const pred = matchPredMap.get(`${participant.id}:${match.id}`);
+                  return pred ? { participant, pred } : null;
+                })
+                .filter(Boolean) as { participant: Profile; pred: MatchPredRow }[];
 
-                  const stats = calcMatchStats(
-                    predsForMatch.map((x) => ({
-                      home: x.pred.predicted_home_score,
-                      away: x.pred.predicted_away_score,
-                    }))
-                  );
+              const stats = calcMatchStats(
+                predsForMatch.map((x) => ({
+                  home: x.pred.predicted_home_score,
+                  away: x.pred.predicted_away_score
+                }))
+              );
 
-                  return (
-                    <div
-                      key={match.id}
-                      className="border-b border-slate-100 px-4 py-3 last:border-b-0"
-                    >
-                      {/* Match header */}
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className="text-xs font-black text-slate-400">
-                          #{match.match_no}
-                        </span>
-                        <span className="text-sm font-black text-slate-950">
-                          {match.home_team}
-                          <span className="mx-1 font-semibold text-slate-400">vs</span>
-                          {match.away_team}
-                        </span>
-                        {match.status === "finished" && (
-                          <span className="ml-auto rounded bg-pitch-50 px-2 py-0.5 text-xs font-black text-pitch-700">
-                            {match.home_score_90}–{match.away_score_90}
-                          </span>
-                        )}
+              return (
+                <article className="card space-y-4" key={match.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase text-slate-400">
+                        Kamp #{match.match_no}
+                      </p>
+                      <h2 className="mt-1 text-lg font-black text-slate-950">
+                        {match.home_team}
+                        <span className="mx-2 font-semibold text-slate-400">vs</span>
+                        {match.away_team}
+                      </h2>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        {formatDanishDateTime(match.kickoff_at)}
+                      </p>
+                    </div>
+
+                    {match.status === "finished" &&
+                    match.home_score_90 !== null &&
+                    match.away_score_90 !== null ? (
+                      <div className="rounded-lg bg-pitch-50 px-3 py-2 text-right">
+                        <p className="text-xs font-black uppercase text-pitch-500">
+                          Resultat
+                        </p>
+                        <p className="text-sm font-black text-pitch-700">
+                          {match.home_score_90}-{match.away_score_90}
+                        </p>
                       </div>
+                    ) : null}
+                  </div>
 
-                      {/* Stats */}
-                      {stats && (
-                        <div className="mb-2 flex flex-wrap gap-3 text-xs font-semibold text-slate-400">
-                          <span>
-                            Snit:{" "}
-                            <strong className="text-slate-600">
-                              {stats.avgHome}–{stats.avgAway}
-                            </strong>
-                          </span>
-                          <span>
-                            Populæreste:{" "}
-                            <strong className="text-slate-600">{stats.mostPopular}</strong>
-                          </span>
-                          <span className="text-pitch-500">
-                            {stats.pctHome}% H
-                          </span>
-                          <span className="text-slate-500">
-                            {stats.pctDraw}% U
-                          </span>
-                          <span className="text-cup-500">
-                            {stats.pctAway}% B
-                          </span>
-                          <span className="ml-auto">
-                            {stats.totalBets}/{participants.length} bud
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Individual picks */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {predsForMatch.length === 0 ? (
-                          <span className="text-xs font-semibold text-slate-300">
-                            Ingen bud afgivet
-                          </span>
-                        ) : (
-                          predsForMatch.map(({ participant, pred }) => {
-                            const bg = predBg(
-                              {
-                                home: pred.predicted_home_score,
-                                away: pred.predicted_away_score,
-                              },
-                              match
-                            );
-                            const isCurrentUser = participant.id === user.id;
-                            return (
-                              <span
-                                key={participant.id}
-                                className={`rounded px-2 py-0.5 text-xs font-black ${
-                                  bg || "bg-slate-100 text-slate-600"
-                                } ${isCurrentUser ? "ring-2 ring-pitch-700 ring-offset-1" : ""}`}
-                                title={participant.display_name}
-                              >
-                                {pred.predicted_home_score}–{pred.predicted_away_score}
-                                {" "}
-                                <span className="font-semibold opacity-70">
-                                  {participant.display_name
-                                    .split(" ")
-                                    .map((n) => n[0])
-                                    .join("")
-                                    .toUpperCase()
-                                    .slice(0, 2)}
-                                </span>
-                              </span>
-                            );
-                          })
-                        )}
+                  {stats ? (
+                    <div className="grid gap-2 text-xs font-semibold text-slate-500 sm:grid-cols-2 lg:grid-cols-5">
+                      <div className="rounded-lg bg-slate-50 px-3 py-2">
+                        Snit hjemme:{" "}
+                        <strong className="text-slate-800">{stats.avgHome}</strong>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2">
+                        Snit ude:{" "}
+                        <strong className="text-slate-800">{stats.avgAway}</strong>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2">
+                        Antal bud:{" "}
+                        <strong className="text-slate-800">{stats.totalBets}</strong>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2">
+                        Populærest:{" "}
+                        <strong className="text-slate-800">{stats.mostPopular}</strong>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2">
+                        H/U/B:{" "}
+                        <strong className="text-slate-800">
+                          {stats.pctHome}% / {stats.pctDraw}% / {stats.pctAway}%
+                        </strong>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+                  ) : null}
 
-      {/* ── Statement predictions ──────────────────────────────────────────── */}
-      {statements.length > 0 && (
+                  {predsForMatch.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                      <p className="font-black text-slate-950">Ingen bud endnu</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        Når deltagerne har afgivet kampbud, vises de i tabellen her.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-lg border border-slate-200">
+                      <table className="min-w-[38rem] w-full text-left text-sm">
+                        <thead className="bg-slate-50 text-xs font-black uppercase text-slate-400">
+                          <tr>
+                            <th className="px-3 py-2">Deltager</th>
+                            <th className="px-3 py-2">Bud</th>
+                            <th className="px-3 py-2">Udfald</th>
+                            <th className="px-3 py-2 text-right">Point</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {predsForMatch.map(({ participant, pred }) => {
+                            const isCurrentUser = participant.id === user.id;
+                            const home = pred.predicted_home_score;
+                            const away = pred.predicted_away_score;
+
+                            return (
+                              <tr
+                                className={isCurrentUser ? "bg-pitch-50/60" : "bg-white"}
+                                key={participant.id}
+                              >
+                                <td className="whitespace-nowrap px-3 py-2 font-bold text-slate-950">
+                                  {participant.display_name}
+                                  {isCurrentUser ? (
+                                    <span className="ml-2 rounded bg-pitch-100 px-1.5 py-0.5 text-[0.65rem] font-black uppercase text-pitch-700">
+                                      Dig
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span
+                                    className={`inline-flex rounded px-2 py-1 text-xs font-black ${predictionResultClass(
+                                      { home, away },
+                                      match
+                                    )}`}
+                                  >
+                                    {home}-{away}
+                                  </span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-600">
+                                  {outcomeLabel(home, away)}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2 text-right font-black text-slate-950">
+                                  {match.status === "finished"
+                                    ? pred.total_points
+                                    : "Ikke afgjort"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </article>
+              );
+            })
+          )}
+        </section>
+      ) : (
         <section className="space-y-4">
-          <h2 className="text-base font-black text-slate-950">Udsagnssvar</h2>
-
-          <div className="card overflow-hidden p-0">
-            {statements.map((stmt) => {
-              const predsForStmt = participants
-                .map((p) => {
-                  const pred = stmtPredMap.get(`${p.id}:${stmt.id}`);
-                  return pred ? { participant: p, pred } : null;
+          {statements.length === 0 ? (
+            <div className="card py-10 text-center">
+              <p className="font-black text-slate-950">Ingen udsagn fundet</p>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Udsagnssvar vises her, når udsagnene er oprettet.
+              </p>
+            </div>
+          ) : (
+            statements.map((statement) => {
+              const predsForStatement = participants
+                .map((participant) => {
+                  const pred = stmtPredMap.get(`${participant.id}:${statement.id}`);
+                  return pred ? { participant, pred } : null;
                 })
                 .filter(Boolean) as { participant: Profile; pred: StmtPredRow }[];
 
               return (
-                <div
-                  key={stmt.id}
-                  className="border-b border-slate-100 px-4 py-3 last:border-b-0"
-                >
-                  <div className="mb-2 flex items-start gap-2">
-                    <span className="grid size-6 shrink-0 place-items-center rounded bg-pitch-50 text-xs font-black text-pitch-700">
-                      {stmt.sort_order}
-                    </span>
-                    <p className="text-sm font-bold text-slate-950">
-                      {stmt.question}
-                    </p>
-                    {stmt.is_resolved && (
-                      <span className="ml-auto shrink-0 rounded bg-pitch-50 px-2 py-0.5 text-xs font-black text-pitch-700">
-                        {stmt.correct_answer}
-                      </span>
-                    )}
+                <article className="card space-y-4" key={statement.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase text-slate-400">
+                        Udsagn #{statement.sort_order}
+                      </p>
+                      <h2 className="mt-1 text-base font-black text-slate-950">
+                        {statement.question}
+                      </h2>
+                    </div>
+
+                    <div
+                      className={`rounded-lg px-3 py-2 text-right ${
+                        statement.is_resolved
+                          ? "bg-pitch-50 text-pitch-700"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      <p className="text-xs font-black uppercase">
+                        {statement.is_resolved ? "Korrekt svar" : "Status"}
+                      </p>
+                      <p className="text-sm font-black">
+                        {statement.is_resolved
+                          ? (statement.correct_answer ?? "Ikke angivet")
+                          : "Ikke afgjort"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5">
-                    {predsForStmt.length === 0 ? (
-                      <span className="text-xs font-semibold text-slate-300">
-                        Ingen svar
-                      </span>
-                    ) : (
-                      predsForStmt.map(({ participant, pred }) => {
-                        const correct =
-                          stmt.is_resolved && pred.points > 0;
-                        const wrong =
-                          stmt.is_resolved && pred.points === 0;
-                        const isCurrentUser = participant.id === user.id;
-                        return (
-                          <span
-                            key={participant.id}
-                            className={`rounded px-2 py-0.5 text-xs font-bold ${
-                              correct
+                  {predsForStatement.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                      <p className="font-black text-slate-950">Ingen svar endnu</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        Når deltagerne har svaret, vises de i tabellen her.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-lg border border-slate-200">
+                      <table className="min-w-[34rem] w-full text-left text-sm">
+                        <thead className="bg-slate-50 text-xs font-black uppercase text-slate-400">
+                          <tr>
+                            <th className="px-3 py-2">Deltager</th>
+                            <th className="px-3 py-2">Svar</th>
+                            <th className="px-3 py-2 text-right">Point</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {predsForStatement.map(({ participant, pred }) => {
+                            const isCurrentUser = participant.id === user.id;
+                            const isResolved = statement.is_resolved;
+                            const pointClass = !isResolved
+                              ? "bg-slate-100 text-slate-500"
+                              : pred.points > 0
                                 ? "bg-pitch-50 text-pitch-700"
-                                : wrong
-                                  ? "bg-slate-100 text-slate-400"
-                                  : "bg-slate-100 text-slate-600"
-                            } ${isCurrentUser ? "ring-2 ring-pitch-700 ring-offset-1" : ""}`}
-                            title={participant.display_name}
-                          >
-                            {pred.answer}
-                            {" "}
-                            <span className="opacity-60">
-                              {participant.display_name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .toUpperCase()
-                                .slice(0, 2)}
-                            </span>
-                          </span>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
+                                : "bg-slate-100 text-slate-400";
+
+                            return (
+                              <tr
+                                className={isCurrentUser ? "bg-pitch-50/60" : "bg-white"}
+                                key={participant.id}
+                              >
+                                <td className="whitespace-nowrap px-3 py-2 font-bold text-slate-950">
+                                  {participant.display_name}
+                                  {isCurrentUser ? (
+                                    <span className="ml-2 rounded bg-pitch-100 px-1.5 py-0.5 text-[0.65rem] font-black uppercase text-pitch-700">
+                                      Dig
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2 font-semibold text-slate-700">
+                                  {pred.answer}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2 text-right">
+                                  <span
+                                    className={`inline-flex rounded px-2 py-1 text-xs font-black ${pointClass}`}
+                                  >
+                                    {isResolved ? pred.points : "Ikke afgjort"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </article>
               );
-            })}
-          </div>
+            })
+          )}
         </section>
       )}
 
       <p className="text-center text-xs font-semibold text-slate-400">
-        Dine picks er markeret med en ring · Initialer er for identificering
+        Dine rækker er markeret med Dig.
       </p>
     </div>
   );
