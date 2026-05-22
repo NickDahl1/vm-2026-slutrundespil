@@ -173,7 +173,7 @@ export default async function AdminReleasePage({
                 <span className="font-black">Årsag:</span> FOOTBALL_API_KEY er ikke sat i GitHub Secrets.
               </p>
               <p>
-                <span className="font-black">Mock-data:</span> Deaktiveret som automatisk fallback — synkronisering stopper sikkert uden API-nøgle.
+                <span className="font-black">Testdata:</span> Deaktiveret som automatisk fallback — synkronisering stopper sikkert uden API-nøgle.
               </p>
               <p>
                 <span className="font-black">GitHub Action:</span> Konfigureret og klar — kører dagligt kl. 08:00 CEST, men gør ingenting uden nøgle.
