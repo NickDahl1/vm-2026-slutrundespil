@@ -30,6 +30,7 @@ type LeaderRow = {
   perfect_results: number;
   correct_outcomes: number;
   predictions_count: number;
+  statement_answers_count: number;
 };
 
 export default async function StatisticsPage() {
@@ -37,24 +38,18 @@ export default async function StatisticsPage() {
   const supabase = await createClient();
 
   const [
-    { count: userCount },
     { count: matchCount },
-    { count: predCount },
     { count: finishedCount },
     { count: stmtCount },
-    { count: stmtPredCount },
     { data: settingsData },
     { data: goalData },
     { data: allPredsData },
     { data: leaderData },
     { data: snapshotData },
   ] = await Promise.all([
-    supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("matches").select("*", { count: "exact", head: true }),
-    supabase.from("match_predictions").select("*", { count: "exact", head: true }),
     supabase.from("matches").select("*", { count: "exact", head: true }).eq("status", "finished"),
     supabase.from("statements").select("*", { count: "exact", head: true }),
-    supabase.from("statement_predictions").select("*", { count: "exact", head: true }),
     supabase.from("app_settings").select("*").single(),
     supabase
       .from("matches")
@@ -67,7 +62,7 @@ export default async function StatisticsPage() {
     supabase
       .from("leaderboard_view" as never)
       .select(
-        "user_id, display_name, total_points, match_points, statement_points, perfect_results, correct_outcomes, predictions_count"
+        "user_id, display_name, total_points, match_points, statement_points, perfect_results, correct_outcomes, predictions_count, statement_answers_count"
       )
       .order("rank", { ascending: true }),
     supabase
@@ -77,17 +72,20 @@ export default async function StatisticsPage() {
   ]);
 
   const settings = settingsData as AppSettings | null;
-  const users = userCount ?? 0;
   const matches = matchCount ?? 0;
-  const preds = predCount ?? 0;
   const finished = finishedCount ?? 0;
   const stmts = stmtCount ?? 0;
-  const stmtPreds = stmtPredCount ?? 0;
 
   const goals = (goalData ?? []) as GoalRow[];
   const allPreds = (allPredsData ?? []) as PredRow[];
   const leaders = (leaderData ?? []) as LeaderRow[];
   const snapshots = (snapshotData ?? []) as SnapshotRow[];
+  const users = leaders.length;
+  const preds = leaders.reduce((sum, leader) => sum + leader.predictions_count, 0);
+  const stmtPreds = leaders.reduce(
+    (sum, leader) => sum + leader.statement_answers_count,
+    0
+  );
 
   const tournamentStarted = finished > 0;
 

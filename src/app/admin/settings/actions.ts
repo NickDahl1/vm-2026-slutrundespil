@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { copenhagenToUTC } from "@/lib/date-format";
+import { requireAdmin } from "@/lib/auth";
 
 export type SettingsState = {
   status: "idle" | "success" | "error";
@@ -13,15 +14,8 @@ export async function updateSettingsAction(
   _prev: SettingsState,
   formData: FormData
 ): Promise<SettingsState> {
+  await requireAdmin();
   const supabase = await createClient();
-
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { status: "error", message: "Du skal være logget ind som admin." };
-  }
 
   const settingsId = formData.get("settings_id") as string;
   if (!settingsId) {
