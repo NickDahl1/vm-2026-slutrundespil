@@ -40,6 +40,14 @@ export default async function AdminSettingsPage() {
             </span>
           </div>
           <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-semibold text-slate-700">Slutspilsbud</span>
+            <span
+              className={`font-black ${settings?.knockout_predictions_open ? "text-pitch-700" : "text-slate-500"}`}
+            >
+              {settings?.knockout_predictions_open ? "Åbent" : "Lukket"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3 text-sm">
             <span className="font-semibold text-slate-700">Global låsning</span>
             <span
               className={`font-black ${settings?.game_locked ? "text-red-600" : "text-pitch-700"}`}

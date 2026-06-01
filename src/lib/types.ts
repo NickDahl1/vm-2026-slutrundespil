@@ -34,6 +34,7 @@ export type AppSettings = {
   group_stage_lock_at: string | null;
   knockout_stage_lock_at: string | null;
   game_locked: boolean;
+  knockout_predictions_open: boolean;
   updated_at: string;
 };
 

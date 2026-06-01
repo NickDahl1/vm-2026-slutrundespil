@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDanishDateTime } from "@/lib/date-format";
 import { calcMatchStats, isPredictionsEligible } from "@/lib/prediction-stats";
+import { isKnockoutOpen } from "@/lib/match-utils";
 import type { Match, Statement } from "@/lib/types";
 
 type Profile = { id: string; display_name: string; is_admin: boolean };
@@ -107,12 +108,16 @@ export default async function PredictionsPage({
   const supabase = await createClient();
 
   const [
-    { count: totalMatches },
-    { count: myMatchPreds },
+    { count: allMatchCount },
+    { count: groupMatchCount },
+    { data: settingsForGate },
+    { count: myAllMatchPreds },
     { count: totalStmts },
     { count: myStmtPreds }
   ] = await Promise.all([
     supabase.from("matches").select("*", { count: "exact", head: true }),
+    supabase.from("matches").select("*", { count: "exact", head: true }).eq("phase", "group_stage"),
+    supabase.from("app_settings").select("knockout_predictions_open").single(),
     supabase
       .from("match_predictions")
       .select("*", { count: "exact", head: true })
@@ -125,16 +130,26 @@ export default async function PredictionsPage({
   ]);
 
   const isAdmin = profile?.is_admin ?? false;
+  const knockoutOpen = (settingsForGate as { knockout_predictions_open?: boolean } | null)
+    ?.knockout_predictions_open ?? false;
+
+  // Relevant totals depend on whether knockout is open
+  const relevantMatchTotal = knockoutOpen ? (allMatchCount ?? 0) : (groupMatchCount ?? 0);
+
+  // Before knockout opens, the RLS restrictive policy blocks knockout INSERT/UPDATE,
+  // so myAllMatchPreds only contains group_stage predictions in practice.
+  const myRelevantMatchPreds = myAllMatchPreds ?? 0;
+
   const isEligible = isPredictionsEligible(
-    myMatchPreds ?? 0,
-    totalMatches ?? 0,
+    myRelevantMatchPreds,
+    relevantMatchTotal,
     myStmtPreds ?? 0,
     totalStmts ?? 0,
     isAdmin
   );
 
   if (!isEligible) {
-    const missingMatches = Math.max(0, (totalMatches ?? 0) - (myMatchPreds ?? 0));
+    const missingMatches = Math.max(0, relevantMatchTotal - myRelevantMatchPreds);
     const missingStmts = Math.max(0, (totalStmts ?? 0) - (myStmtPreds ?? 0));
 
     return (
@@ -157,18 +172,27 @@ export default async function PredictionsPage({
           </div>
 
           <div className="mx-auto grid max-w-sm gap-2">
-            <div className="flex items-center justify-between rounded-lg bg-cup-50 px-4 py-2">
-              <span className="text-sm font-semibold text-cup-500">
-                Manglende kampbud
-              </span>
-              <span className="font-black text-cup-500">{missingMatches}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-cup-50 px-4 py-2">
-              <span className="text-sm font-semibold text-cup-500">
-                Manglende udsagn
-              </span>
-              <span className="font-black text-cup-500">{missingStmts}</span>
-            </div>
+            {missingMatches > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-cup-50 px-4 py-2">
+                <span className="text-sm font-semibold text-cup-500">
+                  Manglende {knockoutOpen ? "" : "grundspils"}kampbud
+                </span>
+                <span className="font-black text-cup-500">{missingMatches}</span>
+              </div>
+            )}
+            {!knockoutOpen && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-center text-sm font-semibold text-slate-500">
+                🔒 Slutspilsbud åbner senere og tæller ikke med endnu
+              </div>
+            )}
+            {missingStmts > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-cup-50 px-4 py-2">
+                <span className="text-sm font-semibold text-cup-500">
+                  Manglende udsagn
+                </span>
+                <span className="font-black text-cup-500">{missingStmts}</span>
+              </div>
+            )}
           </div>
 
           <div className="mx-auto grid max-w-sm gap-2 sm:grid-cols-2">

@@ -5,6 +5,7 @@ import { FormMessage } from "@/components/form-message";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDanishDateTime } from "@/lib/date-format";
+import { isKnockoutOpen } from "@/lib/match-utils";
 import type { AppSettings } from "@/lib/types";
 
 type PredSummary = {
@@ -30,21 +31,22 @@ export default async function DashboardPage({
   const supabase = await createClient();
 
   const [
-    { count: matchCount },
-    { count: predictionCount },
+    { count: groupMatchCount },
+    { count: allMatchCount },
     { data: settingsData },
     { data: finishedMatchData },
     { data: userPredData },
+    { data: groupStageMatchIdsData },
     { data: rankData },
     { count: participantCount },
     { count: statementCount },
     { count: statementAnswerCount }
   ] = await Promise.all([
-    supabase.from("matches").select("*", { count: "exact", head: true }),
     supabase
-      .from("match_predictions")
+      .from("matches")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id),
+      .eq("phase", "group_stage"),
+    supabase.from("matches").select("*", { count: "exact", head: true }),
     supabase.from("app_settings").select("*").single(),
     supabase
       .from("matches")
@@ -55,6 +57,7 @@ export default async function DashboardPage({
       .from("match_predictions")
       .select("match_id, total_points, points_outcome")
       .eq("user_id", user.id),
+    supabase.from("matches").select("id").eq("phase", "group_stage"),
     supabase
       .from("leaderboard_view" as never)
       .select("rank, match_points, statement_points, total_points")
@@ -71,8 +74,20 @@ export default async function DashboardPage({
   ]);
 
   const settings = settingsData as AppSettings | null;
-  const total = matchCount ?? 0;
-  const submitted = predictionCount ?? 0;
+  const knockoutOpen = isKnockoutOpen(settings);
+
+  // Relevant match count: only group_stage until knockout is opened
+  const total = knockoutOpen ? (allMatchCount ?? 0) : (groupMatchCount ?? 0);
+
+  // User's submitted predictions for relevant matches only
+  const groupStageMatchIds = new Set(
+    ((groupStageMatchIdsData ?? []) as { id: number }[]).map((m) => m.id)
+  );
+  const allUserPreds = (userPredData ?? []) as PredSummary[];
+  const submitted = knockoutOpen
+    ? allUserPreds.length
+    : allUserPreds.filter((p) => groupStageMatchIds.has(p.match_id)).length;
+
   const missing = Math.max(0, total - submitted);
   const entry = rankData as RankEntry | null;
   const participants = participantCount ?? 0;
@@ -83,8 +98,7 @@ export default async function DashboardPage({
   const finishedIds = new Set(
     (finishedMatchData ?? []).map((m) => (m as { id: number }).id)
   );
-  const preds = (userPredData ?? []) as PredSummary[];
-  const finishedPreds = preds.filter((p) => finishedIds.has(p.match_id));
+  const finishedPreds = allUserPreds.filter((p) => finishedIds.has(p.match_id));
 
   const matchPoints = entry?.match_points ?? finishedPreds.reduce((s, p) => s + p.total_points, 0);
   const statementPoints = entry?.statement_points ?? 0;
@@ -161,13 +175,19 @@ export default async function DashboardPage({
           value={settings?.game_locked ? "Låst" : missing === 0 && missingStatements === 0 ? "Klar" : "Åben"}
         />
         <StatCard
-          detail={`Ud af ${total} kampe i alt`}
+          detail={`Ud af ${total} ${knockoutOpen ? "" : "grundspils"}kampe`}
           label="Kampbud afgivet"
           tone="green"
           value={String(submitted)}
         />
         <StatCard
-          detail={missing === 0 ? "Du er ajour med alle kampe" : "Afgiv dem inden deadline"}
+          detail={
+            missing === 0
+              ? knockoutOpen
+                ? "Du er ajour med alle kampe"
+                : "Du er ajour med alle grundspilskampe"
+              : "Afgiv dem inden deadline"
+          }
           label="Manglende kampbud"
           tone={missing > 0 ? "gold" : "neutral"}
           value={String(missing)}

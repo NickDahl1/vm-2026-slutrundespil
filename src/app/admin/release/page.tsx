@@ -8,6 +8,7 @@ import {
   checkStatementCount,
   checkDeadline,
   checkGameLocked,
+  checkKnockoutState,
   checkTestResults,
   checkFinishedBeforeTournament,
   checkUserCount,
@@ -92,11 +93,15 @@ export default async function AdminReleasePage({
   // Auto-sync: check server-side env (never exposed to browser)
   const footballApiKeyConfigured = !!process.env.FOOTBALL_API_KEY;
 
+  const now = new Date();
+  const beforeTournament = now < TOURNAMENT_START;
+
   const checks: ReleaseCheck[] = [
     checkMatchCount(matchCount ?? 0),
     checkStatementCount(statementCount ?? 0),
     checkDeadline(settings?.group_stage_lock_at ?? null),
     checkGameLocked(settings?.game_locked ?? false),
+    checkKnockoutState(settings?.knockout_predictions_open ?? false, beforeTournament),
     checkTestResults(matchesWithResultsCount ?? 0),
     checkFinishedBeforeTournament(finishedEarlyCount ?? 0, TOURNAMENT_START),
     checkUserCount(userCount ?? 0),

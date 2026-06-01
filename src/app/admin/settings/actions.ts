@@ -25,6 +25,7 @@ export async function updateSettingsAction(
   const groupRaw = (formData.get("group_stage_lock_at") as string) ?? "";
   const knockoutRaw = (formData.get("knockout_stage_lock_at") as string) ?? "";
   const gameLocked = formData.get("game_locked") === "on";
+  const knockoutPredictionsOpen = formData.get("knockout_predictions_open") === "on";
 
   // Validate dates when provided
   if (groupRaw && isNaN(new Date(groupRaw).getTime())) {
@@ -48,7 +49,8 @@ export async function updateSettingsAction(
     .update({
       group_stage_lock_at: groupUTC,
       knockout_stage_lock_at: knockoutUTC,
-      game_locked: gameLocked
+      game_locked: gameLocked,
+      knockout_predictions_open: knockoutPredictionsOpen,
     })
     .eq("id", settingsId);
 

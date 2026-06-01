@@ -93,6 +93,26 @@ export function checkUserCount(count: number): ReleaseCheck {
   };
 }
 
+export function checkKnockoutState(
+  knockoutPredictionsOpen: boolean,
+  beforeTournament: boolean
+): ReleaseCheck {
+  if (beforeTournament && knockoutPredictionsOpen) {
+    return {
+      label: "Slutspilsbud",
+      status: "warn",
+      detail: "Slutspilsbud er åbnet — normalt først efter gruppespillet",
+    };
+  }
+  return {
+    label: "Slutspilsbud",
+    status: "ok",
+    detail: knockoutPredictionsOpen
+      ? "Slutspilsbud er åbent"
+      : "Slutspilsbud er lukket — korrekt før slutspillet",
+  };
+}
+
 export function checkPredictionCoverage(
   predictionCount: number,
   userCount: number,

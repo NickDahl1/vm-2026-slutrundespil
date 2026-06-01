@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useReducer } from "react";
 import type { Match, Prediction, AppSettings } from "@/lib/types";
+import { isKnockoutOpen, isMatchRelevant } from "@/lib/match-utils";
 import { formatDanishDate, formatDanishTime, getDanishDateKey } from "@/lib/date-format";
 import { bulkUpsertPredictionsAction, type BulkPredictionState } from "./actions";
 
@@ -69,6 +70,10 @@ function groupByDanishDate(matches: Match[]): [string, Match[]][] {
 function isMatchLocked(match: Match, settings: AppSettings | null): boolean {
   if (!settings) return false;
   if (settings.game_locked) return true;
+  // Knockout matches are always locked until admin opens them
+  if (match.phase === "knockout_stage" && !settings.knockout_predictions_open) {
+    return true;
+  }
   const now = new Date();
   if (match.phase === "group_stage" && settings.group_stage_lock_at) {
     return new Date(settings.group_stage_lock_at) <= now;
@@ -276,10 +281,22 @@ export function MatchList({
     dispatch({ type: "edit", matchId, home, away });
   }
 
-  const grouped = groupByDanishDate(matches);
+  const knockoutOpen = isKnockoutOpen(settings);
 
-  // Collect dirty + fully-filled predictions to submit
+  // Split matches into relevant (shown in main list) and knockout-not-yet-open
+  const relevantMatches = matches.filter((m) => isMatchRelevant(m, knockoutOpen));
+  const knockoutComingSoon = matches.filter(
+    (m) => m.phase === "knockout_stage" && !knockoutOpen
+  );
+
+  const grouped = groupByDanishDate(relevantMatches);
+
+  // Collect dirty + fully-filled predictions to submit (only relevant matches)
   const dirtyPredictions = [...dirtyIds]
+    .filter((id) => {
+      const m = relevantMatches.find((r) => r.id === id);
+      return !!m; // only submit predictions for relevant matches
+    })
     .map((id) => {
       const inp = inputValues[id];
       if (!inp || inp.home === "" || inp.away === "") return null;
@@ -290,8 +307,8 @@ export function MatchList({
     })
     .filter(Boolean);
 
-  // Progress summary
-  const unlocked = matches.filter(
+  // Progress summary — only count relevant (phase-open) matches
+  const unlocked = relevantMatches.filter(
     (m) => !isMatchLocked(m, settings) && m.status !== "finished"
   );
   const filledCount = unlocked.filter((m) => {
@@ -302,7 +319,7 @@ export function MatchList({
   const missingCount = unlocked.length - filledCount;
   const unsavedCount = dirtyPredictions.length;
 
-  if (matches.length === 0) {
+  if (relevantMatches.length === 0 && knockoutComingSoon.length === 0) {
     return (
       <div className="card py-12 text-center">
         <p className="text-2xl">⚽</p>
@@ -420,6 +437,21 @@ export function MatchList({
           </section>
         ))}
       </div>
+
+      {/* Knockout coming-soon section (only shown when not yet open) */}
+      {knockoutComingSoon.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="px-1 text-xs font-black uppercase tracking-wide text-slate-400">
+            Slutspil — {knockoutComingSoon.length} kampe
+          </h2>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-center">
+            <p className="font-black text-slate-600">🔒 Slutspilsbud åbner senere</p>
+            <p className="mt-1 text-sm font-semibold text-slate-400">
+              Admin åbner slutspilsbud, når gruppespillet er færdigt og holdene er kendte.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Bottom save button (shown when there are unsaved changes) */}
       {dirtyPredictions.length > 0 && (
