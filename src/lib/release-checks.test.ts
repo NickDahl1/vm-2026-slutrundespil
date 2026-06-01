@@ -4,6 +4,7 @@ import {
   checkStatementCount,
   checkDeadline,
   checkGameLocked,
+  checkKnockoutState,
   checkTestResults,
   checkFinishedBeforeTournament,
   checkUserCount,
@@ -105,6 +106,28 @@ describe("checkUserCount", () => {
 
   it("returns warn when no users", () => {
     expect(checkUserCount(0).status).toBe("warn");
+  });
+});
+
+describe("checkKnockoutState", () => {
+  it("returns ok when closed before tournament", () => {
+    expect(checkKnockoutState(false, true).status).toBe("ok");
+  });
+
+  it("returns warn when opened before tournament", () => {
+    expect(checkKnockoutState(true, true).status).toBe("warn");
+  });
+
+  it("returns ok when opened after tournament has started", () => {
+    expect(checkKnockoutState(true, false).status).toBe("ok");
+  });
+
+  it("returns ok when closed after tournament has started", () => {
+    expect(checkKnockoutState(false, false).status).toBe("ok");
+  });
+
+  it("includes warning detail when opened before tournament", () => {
+    expect(checkKnockoutState(true, true).detail).toContain("gruppespillet");
   });
 });
 

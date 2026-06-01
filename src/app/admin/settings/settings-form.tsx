@@ -77,6 +77,44 @@ export function SettingsForm({ settings }: { settings: AppSettings }) {
         </div>
       </div>
 
+      {/* Knockout predictions open */}
+      <div className="card space-y-4">
+        <div>
+          <h2 className="font-black text-slate-950">Åbn for slutspilsbud</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500">
+            Slå først denne til, når gruppespillet er færdigt, og slutspilskampene er kendte.
+            Brugere kan ikke afgive bud på knockoutkampe, før denne er aktiveret.
+          </p>
+        </div>
+
+        <label className="flex cursor-pointer items-center gap-3">
+          <input
+            className="size-5 rounded border-slate-300 text-pitch-700 focus:ring-pitch-700"
+            defaultChecked={settings.knockout_predictions_open}
+            id="knockout_predictions_open"
+            name="knockout_predictions_open"
+            type="checkbox"
+          />
+          <span className="text-sm font-bold text-slate-700">
+            Åbn for slutspilsbud
+          </span>
+        </label>
+
+        {settings.knockout_predictions_open ? (
+          <div className="rounded-lg border border-pitch-100 bg-pitch-50 px-3 py-2">
+            <p className="text-sm font-black text-pitch-700">
+              ✓ Slutspilsbud er åbent — brugere kan afgive bud på knockoutkampe.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-sm font-semibold text-slate-500">
+              Slutspilsbud er lukket — knockoutkampe vises som &ldquo;åbner senere&rdquo;.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Global lock */}
       <div className="card space-y-4">
         <div>
