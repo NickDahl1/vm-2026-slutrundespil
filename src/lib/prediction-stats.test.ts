@@ -70,28 +70,14 @@ describe("calcMatchStats", () => {
 // ── isPredictionsEligible ─────────────────────────────────────────────────────
 
 describe("isPredictionsEligible", () => {
-  it("returns true when user has all match preds and all statement answers", () => {
+  it("returns true for all users regardless of submission counts", () => {
+    expect(isPredictionsEligible(0, 48, 0, 15, false)).toBe(true);
     expect(isPredictionsEligible(48, 48, 15, 15, false)).toBe(true);
+    expect(isPredictionsEligible(47, 48, 14, 15, false)).toBe(true);
+    expect(isPredictionsEligible(0, 0, 0, 0, false)).toBe(true);
   });
 
-  it("returns false when missing match predictions", () => {
-    expect(isPredictionsEligible(47, 48, 15, 15, false)).toBe(false);
-  });
-
-  it("returns false when missing statement answers", () => {
-    expect(isPredictionsEligible(48, 48, 14, 15, false)).toBe(false);
-  });
-
-  it("returns false when both are missing", () => {
-    expect(isPredictionsEligible(0, 48, 0, 15, false)).toBe(false);
-  });
-
-  it("returns true for admin regardless of submission counts", () => {
+  it("returns true for admins", () => {
     expect(isPredictionsEligible(0, 48, 0, 15, true)).toBe(true);
-  });
-
-  it("returns false when there are no matches (0 total)", () => {
-    // No matches defined yet — not eligible even if 0 predictions submitted
-    expect(isPredictionsEligible(0, 0, 0, 0, false)).toBe(false);
   });
 });

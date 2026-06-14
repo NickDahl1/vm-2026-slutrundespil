@@ -46,18 +46,14 @@ export function calcMatchStats(preds: MatchPredInput[]): MatchStats | null {
 
 /**
  * Determines whether a user is eligible to view the /predictions page.
- * Eligible when: they have submitted all match predictions AND all statement
- * answers, OR they are an admin.
+ * Currently open to all users.
  */
 export function isPredictionsEligible(
-  myMatchPreds: number,
-  totalMatches: number,
-  myStmtPreds: number,
-  totalStmts: number,
-  isAdmin: boolean
+  _myMatchPreds: number,
+  _totalMatches: number,
+  _myStmtPreds: number,
+  _totalStmts: number,
+  _isAdmin: boolean
 ): boolean {
-  if (isAdmin) return true;
-  const hasAllMatch = myMatchPreds >= totalMatches && totalMatches > 0;
-  const hasAllStmt = myStmtPreds >= totalStmts && totalStmts > 0;
-  return hasAllMatch && hasAllStmt;
+  return true;
 }
