@@ -46,6 +46,7 @@ export default async function StatisticsPage() {
     { data: allPredsData },
     { data: leaderData },
     { data: snapshotData },
+    { data: finishedMatchData },
   ] = await Promise.all([
     supabase.from("matches").select("*", { count: "exact", head: true }),
     supabase.from("matches").select("*", { count: "exact", head: true }).eq("status", "finished"),
@@ -69,6 +70,7 @@ export default async function StatisticsPage() {
       .from("leaderboard_snapshots")
       .select("user_id, display_name, total_points, snapshotted_at")
       .order("snapshotted_at", { ascending: true }),
+    supabase.from("matches").select("id").eq("status", "finished"),
   ]);
 
   const settings = settingsData as AppSettings | null;
@@ -80,6 +82,7 @@ export default async function StatisticsPage() {
   const allPreds = (allPredsData ?? []) as PredRow[];
   const leaders = (leaderData ?? []) as LeaderRow[];
   const snapshots = (snapshotData ?? []) as SnapshotRow[];
+  const finishedMatchIds = new Set((finishedMatchData ?? []).map((m: { id: number }) => m.id));
   const users = leaders.length;
   const preds = leaders.reduce((sum, leader) => sum + leader.predictions_count, 0);
   const stmtPreds = leaders.reduce(
@@ -129,10 +132,11 @@ export default async function StatisticsPage() {
   const userPredStats: UserPredStats[] = leaders.map((l) => {
     const userPreds = predByUser.get(l.user_id) ?? [];
     const n = userPreds.length;
-    const finishedPreds = userPreds.filter((p) => p.total_points > 0 || p.points_outcome >= 0);
+    const finishedPreds = userPreds.filter((p) => finishedMatchIds.has(p.match_id));
+    const nFinished = finishedPreds.length;
     const avgHome = n > 0 ? userPreds.reduce((s, p) => s + p.predicted_home_score, 0) / n : 0;
     const avgAway = n > 0 ? userPreds.reduce((s, p) => s + p.predicted_away_score, 0) / n : 0;
-    const avgTotal = n > 0 ? userPreds.reduce((s, p) => s + p.total_points, 0) / n : 0;
+    const avgTotal = nFinished > 0 ? finishedPreds.reduce((s, p) => s + p.total_points, 0) / nFinished : 0;
     return {
       user_id: l.user_id,
       display_name: l.display_name,
@@ -157,8 +161,14 @@ export default async function StatisticsPage() {
   )[0];
 
   // ── Chart data ─────────────────────────────────────────────────────────────
+  // Only show snapshots from the first day any user scored points
+  const firstPointsDate = snapshots.find((s) => s.total_points > 0)?.snapshotted_at.slice(0, 10);
+  const chartSnapshots = firstPointsDate
+    ? snapshots.filter((s) => s.snapshotted_at.slice(0, 10) >= firstPointsDate)
+    : snapshots;
+
   const snapshotsByUser = new Map<string, SnapshotRow[]>();
-  for (const s of snapshots) {
+  for (const s of chartSnapshots) {
     const list = snapshotsByUser.get(s.user_id) ?? [];
     list.push(s);
     snapshotsByUser.set(s.user_id, list);
@@ -368,7 +378,7 @@ export default async function StatisticsPage() {
       {/* ── Udvikling over tid (chart) ─────────────────────────────────────── */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-slate-950">Udvikling over tid</h2>
-        {snapshots.length < 2 ? (
+        {chartSnapshots.length < 2 ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center">
             <p className="text-sm font-semibold text-slate-400">
               Grafen vises, når der er mindst to daglige snapshots (fra 11. juni 2026).
