@@ -10,11 +10,11 @@ const guestNavigation = [
 
 const userNavigation = [
   { href: "/dashboard", label: "Hjem" },
-  { href: "/matches", label: "Kampe" },
-  { href: "/statements", label: "Udsagn" },
-  { href: "/leaderboard", label: "Leaderboard" },
   { href: "/predictions", label: "Alles bud" },
   { href: "/statistics", label: "Statistik" },
+  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/matches", label: "Kampe" },
+  { href: "/statements", label: "Udsagn" },
   { href: "/rules", label: "Regler" },
   { href: "/privacy", label: "Privatliv" },
   { href: "/contact", label: "Kontakt" },
@@ -24,13 +24,9 @@ export async function SiteShell({ children }: { children: ReactNode }) {
   const { user, profile } = await getUserWithProfile();
   const navigation = user
     ? [
+        ...(profile?.is_admin ? [{ href: "/admin/matches", label: "Rediger kampe" }] : []),
         ...userNavigation,
-        ...(profile?.is_admin
-          ? [
-              { href: "/admin/matches", label: "Rediger kampe" },
-              { href: "/admin", label: "Admin" },
-            ]
-          : []),
+        ...(profile?.is_admin ? [{ href: "/admin", label: "Admin" }] : []),
       ]
     : guestNavigation;
 
