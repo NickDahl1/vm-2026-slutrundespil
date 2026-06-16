@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export function StatCard({
   label,
   value,
@@ -5,7 +7,7 @@ export function StatCard({
   tone = "neutral"
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   detail: string;
   tone?: "neutral" | "gold" | "green";
 }) {
@@ -18,7 +20,7 @@ export function StatCard({
   return (
     <article className={`card border ${toneClasses[tone]}`}>
       <p className="text-sm font-bold text-slate-600">{label}</p>
-      <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
+      <p className="mt-2 text-2xl font-black leading-tight text-slate-950">{value}</p>
       <p className="mt-1 text-sm text-slate-600">{detail}</p>
     </article>
   );
