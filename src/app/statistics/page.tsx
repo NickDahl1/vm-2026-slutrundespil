@@ -6,6 +6,19 @@ import { formatDanishDateTime } from "@/lib/date-format";
 import { LeaderboardChart, type SnapshotSeries } from "@/components/leaderboard-chart";
 import type { AppSettings } from "@/lib/types";
 
+function Names({ winners }: { winners: { display_name: string }[] }) {
+  return (
+    <>
+      {winners.map((w, i) => (
+        <span key={w.display_name}>
+          {i > 0 && <br />}
+          {w.display_name.split(" ")[0]}
+        </span>
+      ))}
+    </>
+  );
+}
+
 type GoalRow = { home_score_90: number | null; away_score_90: number | null };
 type PredRow = {
   user_id: string;
@@ -166,18 +179,22 @@ export default async function StatisticsPage() {
   });
 
   const eligible = userPredStats.filter((s) => s.finishedCount > 0);
-  const highestAvgPts = [...eligible].sort((a, b) => b.avgPts - a.avgPts)[0];
-  const mostPerfect = [...eligible].sort((a, b) => b.perfect - a.perfect)[0];
-  const mostPts2 = [...eligible].sort((a, b) => b.pts2 - a.pts2)[0];
-  const mostPts1 = [...eligible].sort((a, b) => b.pts1 - a.pts1)[0];
-  const mostPts0 = [...eligible].sort((a, b) => b.pts0 - a.pts0)[0];
-  const mostPts1plus = [...eligible].sort((a, b) => b.pts1plus - a.pts1plus)[0];
-  const mostOptimistic = [...userPredStats].sort(
-    (a, b) => b.avgHome + b.avgAway - (a.avgHome + a.avgAway)
-  )[0];
-  const mostDefensive = [...userPredStats].sort(
-    (a, b) => a.avgHome + a.avgAway - (b.avgHome + b.avgAway)
-  )[0];
+
+  function topTied<T>(arr: T[], key: (item: T) => number): T[] {
+    if (arr.length === 0) return [];
+    const sorted = [...arr].sort((a, b) => key(b) - key(a));
+    const best = key(sorted[0]);
+    return sorted.filter((item) => key(item) === best);
+  }
+
+  const highestAvgPts = topTied(eligible, (s) => s.avgPts);
+  const mostPerfect = topTied(eligible, (s) => s.perfect);
+  const mostPts2 = topTied(eligible, (s) => s.pts2);
+  const mostPts1 = topTied(eligible, (s) => s.pts1);
+  const mostPts0 = topTied(eligible, (s) => s.pts0);
+  const mostPts1plus = topTied(eligible, (s) => s.pts1plus);
+  const mostOptimistic = topTied(userPredStats, (s) => s.avgHome + s.avgAway);
+  const mostDefensive = topTied(userPredStats, (s) => -(s.avgHome + s.avgAway));
 
   // ── Forecast ───────────────────────────────────────────────────────────────
   const remainingMatches = matches - finished;
@@ -280,64 +297,64 @@ export default async function StatisticsPage() {
         <section className="space-y-3">
           <h2 className="text-base font-black text-slate-950">Spillerstatistik</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {highestAvgPts && (
+            {highestAvgPts.length > 0 && (
               <StatCard
-                detail={`${highestAvgPts.display_name} · ${highestAvgPts.avgPts.toFixed(2)} pt/kamp`}
+                detail={`${highestAvgPts[0].avgPts.toFixed(2)} pt/kamp`}
                 label="Bedst point pr. kamp"
                 tone="gold"
-                value={highestAvgPts.display_name.split(" ")[0]}
+                value={<Names winners={highestAvgPts} />}
               />
             )}
-            {mostPts1plus && mostPts1plus.pts1plus > 0 && (
+            {mostPts1plus.length > 0 && mostPts1plus[0].pts1plus > 0 && (
               <StatCard
-                detail={`${mostPts1plus.display_name} · ${mostPts1plus.pts1plus} kampe med ≥1 pt`}
+                detail={`${mostPts1plus[0].pts1plus} kampe med ≥1 pt`}
                 label="Flest kampe med point"
                 tone="green"
-                value={mostPts1plus.display_name.split(" ")[0]}
+                value={<Names winners={mostPts1plus} />}
               />
             )}
-            {mostPerfect && mostPerfect.perfect > 0 && (
+            {mostPerfect.length > 0 && mostPerfect[0].perfect > 0 && (
               <StatCard
-                detail={`${mostPerfect.display_name} · ${mostPerfect.perfect} præcise (3 pt)`}
+                detail={`${mostPerfect[0].perfect} præcise (3 pt)`}
                 label="Flest præcise resultater"
                 tone="gold"
-                value={mostPerfect.display_name.split(" ")[0]}
+                value={<Names winners={mostPerfect} />}
               />
             )}
-            {mostPts2 && mostPts2.pts2 > 0 && (
+            {mostPts2.length > 0 && mostPts2[0].pts2 > 0 && (
               <StatCard
-                detail={`${mostPts2.display_name} · ${mostPts2.pts2} kampe med 2 pt`}
+                detail={`${mostPts2[0].pts2} kampe med 2 pt`}
                 label="Flest 2-point kampe"
-                value={mostPts2.display_name.split(" ")[0]}
+                value={<Names winners={mostPts2} />}
               />
             )}
-            {mostPts1 && mostPts1.pts1 > 0 && (
+            {mostPts1.length > 0 && mostPts1[0].pts1 > 0 && (
               <StatCard
-                detail={`${mostPts1.display_name} · ${mostPts1.pts1} kampe med 1 pt`}
+                detail={`${mostPts1[0].pts1} kampe med 1 pt`}
                 label="Flest 1-point kampe"
-                value={mostPts1.display_name.split(" ")[0]}
+                value={<Names winners={mostPts1} />}
               />
             )}
-            {mostPts0 && mostPts0.pts0 > 0 && (
+            {mostPts0.length > 0 && mostPts0[0].pts0 > 0 && (
               <StatCard
-                detail={`${mostPts0.display_name} · ${mostPts0.pts0} kampe med 0 pt`}
+                detail={`${mostPts0[0].pts0} kampe med 0 pt`}
                 label="Flest kampe uden point"
                 tone="neutral"
-                value={mostPts0.display_name.split(" ")[0]}
+                value={<Names winners={mostPts0} />}
               />
             )}
-            {mostOptimistic && (
+            {mostOptimistic.length > 0 && (
               <StatCard
-                detail={`Snit ${(mostOptimistic.avgHome + mostOptimistic.avgAway).toFixed(1)} mål pr. kamp`}
+                detail={`Snit ${(mostOptimistic[0].avgHome + mostOptimistic[0].avgAway).toFixed(1)} mål pr. kamp`}
                 label="Mest optimistisk"
-                value={mostOptimistic.display_name.split(" ")[0]}
+                value={<Names winners={mostOptimistic} />}
               />
             )}
-            {mostDefensive && (
+            {mostDefensive.length > 0 && (
               <StatCard
-                detail={`Snit ${(mostDefensive.avgHome + mostDefensive.avgAway).toFixed(1)} mål pr. kamp`}
+                detail={`Snit ${(mostDefensive[0].avgHome + mostDefensive[0].avgAway).toFixed(1)} mål pr. kamp`}
                 label="Mest defensiv"
-                value={mostDefensive.display_name.split(" ")[0]}
+                value={<Names winners={mostDefensive} />}
               />
             )}
           </div>
