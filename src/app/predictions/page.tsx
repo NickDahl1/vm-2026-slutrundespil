@@ -70,6 +70,153 @@ function predictionResultClass(
   return "bg-slate-100 text-slate-400";
 }
 
+function MatchCard({
+  match,
+  participants,
+  matchPredMap,
+  currentUserId,
+}: {
+  match: Match;
+  participants: Profile[];
+  matchPredMap: Map<string, MatchPredRow>;
+  currentUserId: string;
+}) {
+  const predsForMatch = participants
+    .map((participant) => {
+      const pred = matchPredMap.get(`${participant.id}:${match.id}`);
+      return pred ? { participant, pred } : null;
+    })
+    .filter(Boolean) as { participant: Profile; pred: MatchPredRow }[];
+
+  const stats = calcMatchStats(
+    predsForMatch.map((x) => ({
+      home: x.pred.predicted_home_score,
+      away: x.pred.predicted_away_score,
+    }))
+  );
+
+  return (
+    <article className="card space-y-4" key={match.id}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase text-slate-400">
+            Kamp #{match.match_no}
+          </p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">
+            {match.home_team}
+            <span className="mx-2 font-semibold text-slate-400">vs</span>
+            {match.away_team}
+          </h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500">
+            {formatDanishDateTime(match.kickoff_at)}
+          </p>
+        </div>
+
+        {match.status === "finished" &&
+        match.home_score_90 !== null &&
+        match.away_score_90 !== null ? (
+          <div className="rounded-lg bg-pitch-50 px-3 py-2 text-right">
+            <p className="text-xs font-black uppercase text-pitch-500">Resultat</p>
+            <p className="text-sm font-black text-pitch-700">
+              {match.home_score_90}-{match.away_score_90}
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      {stats ? (
+        <div className="grid gap-2 text-xs font-semibold text-slate-500 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            Snit hjemme:{" "}
+            <strong className="text-slate-800">{stats.avgHome}</strong>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            Snit ude:{" "}
+            <strong className="text-slate-800">{stats.avgAway}</strong>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            Antal bud:{" "}
+            <strong className="text-slate-800">{stats.totalBets}</strong>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            Populærest:{" "}
+            <strong className="text-slate-800">{stats.mostPopular}</strong>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            H/U/B:{" "}
+            <strong className="text-slate-800">
+              {stats.pctHome}% / {stats.pctDraw}% / {stats.pctAway}%
+            </strong>
+          </div>
+        </div>
+      ) : null}
+
+      {predsForMatch.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+          <p className="font-black text-slate-950">Ingen bud endnu</p>
+          <p className="mt-1 text-sm font-semibold text-slate-500">
+            Når deltagerne har afgivet kampbud, vises de i tabellen her.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="min-w-[38rem] w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs font-black uppercase text-slate-400">
+              <tr>
+                <th className="px-3 py-2">Deltager</th>
+                <th className="px-3 py-2">Bud</th>
+                <th className="px-3 py-2">Udfald</th>
+                <th className="px-3 py-2 text-right">Point</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {predsForMatch.map(({ participant, pred }) => {
+                const isCurrentUser = participant.id === currentUserId;
+                const home = pred.predicted_home_score;
+                const away = pred.predicted_away_score;
+
+                return (
+                  <tr
+                    className={isCurrentUser ? "bg-pitch-50/60" : "bg-white"}
+                    key={participant.id}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2 font-bold text-slate-950">
+                      {participant.display_name}
+                      {isCurrentUser ? (
+                        <span className="ml-2 rounded bg-pitch-100 px-1.5 py-0.5 text-[0.65rem] font-black uppercase text-pitch-700">
+                          Dig
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-flex rounded px-2 py-1 text-xs font-black ${predictionResultClass(
+                          { home, away },
+                          match
+                        )}`}
+                      >
+                        {home}-{away}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-600">
+                      {outcomeLabel(home, away)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-black text-slate-950">
+                      {match.status === "finished"
+                        ? pred.total_points
+                        : "Ikke afgjort"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </article>
+  );
+}
+
 function TabNav({ activeTab }: { activeTab: PredictionsTab }) {
   return (
     <nav
@@ -94,6 +241,26 @@ function TabNav({ activeTab }: { activeTab: PredictionsTab }) {
         );
       })}
     </nav>
+  );
+}
+
+function SectionToggle({ title, count, defaultOpen }: { title: string; count: number; defaultOpen: boolean }) {
+  return (
+    <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+      <span className="font-black text-slate-800">
+        {title}{" "}
+        <span className="font-semibold text-slate-400">({count})</span>
+      </span>
+      <svg
+        className="h-4 w-4 flex-shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        viewBox="0 0 24 24"
+      >
+        <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </summary>
   );
 }
 
@@ -133,11 +300,7 @@ export default async function PredictionsPage({
   const knockoutOpen = (settingsForGate as { knockout_predictions_open?: boolean } | null)
     ?.knockout_predictions_open ?? false;
 
-  // Relevant totals depend on whether knockout is open
   const relevantMatchTotal = knockoutOpen ? (allMatchCount ?? 0) : (groupMatchCount ?? 0);
-
-  // Before knockout opens, the RLS restrictive policy blocks knockout INSERT/UPDATE,
-  // so myAllMatchPreds only contains group_stage predictions in practice.
   const myRelevantMatchPreds = myAllMatchPreds ?? 0;
 
   const isEligible = isPredictionsEligible(
@@ -257,6 +420,9 @@ export default async function PredictionsPage({
     stmtPredMap.set(`${p.user_id}:${p.statement_id}`, p);
   }
 
+  const finishedMatches = matches.filter((m) => m.status === "finished");
+  const upcomingMatches = matches.filter((m) => m.status !== "finished");
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -268,7 +434,7 @@ export default async function PredictionsPage({
       <TabNav activeTab={activeTab} />
 
       {activeTab === "matches" ? (
-        <section className="space-y-4">
+        <section className="space-y-3">
           {matches.length === 0 ? (
             <div className="card py-10 text-center">
               <p className="font-black text-slate-950">Ingen kampe fundet</p>
@@ -277,144 +443,63 @@ export default async function PredictionsPage({
               </p>
             </div>
           ) : (
-            matches.map((match) => {
-              const predsForMatch = participants
-                .map((participant) => {
-                  const pred = matchPredMap.get(`${participant.id}:${match.id}`);
-                  return pred ? { participant, pred } : null;
-                })
-                .filter(Boolean) as { participant: Profile; pred: MatchPredRow }[];
-
-              const stats = calcMatchStats(
-                predsForMatch.map((x) => ({
-                  home: x.pred.predicted_home_score,
-                  away: x.pred.predicted_away_score
-                }))
-              );
-
-              return (
-                <article className="card space-y-4" key={match.id}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-black uppercase text-slate-400">
-                        Kamp #{match.match_no}
-                      </p>
-                      <h2 className="mt-1 text-lg font-black text-slate-950">
-                        {match.home_team}
-                        <span className="mx-2 font-semibold text-slate-400">vs</span>
-                        {match.away_team}
-                      </h2>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">
-                        {formatDanishDateTime(match.kickoff_at)}
-                      </p>
-                    </div>
-
-                    {match.status === "finished" &&
-                    match.home_score_90 !== null &&
-                    match.away_score_90 !== null ? (
-                      <div className="rounded-lg bg-pitch-50 px-3 py-2 text-right">
-                        <p className="text-xs font-black uppercase text-pitch-500">
-                          Resultat
-                        </p>
-                        <p className="text-sm font-black text-pitch-700">
-                          {match.home_score_90}-{match.away_score_90}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {stats ? (
-                    <div className="grid gap-2 text-xs font-semibold text-slate-500 sm:grid-cols-2 lg:grid-cols-5">
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
-                        Snit hjemme:{" "}
-                        <strong className="text-slate-800">{stats.avgHome}</strong>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
-                        Snit ude:{" "}
-                        <strong className="text-slate-800">{stats.avgAway}</strong>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
-                        Antal bud:{" "}
-                        <strong className="text-slate-800">{stats.totalBets}</strong>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
-                        Populærest:{" "}
-                        <strong className="text-slate-800">{stats.mostPopular}</strong>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
-                        H/U/B:{" "}
-                        <strong className="text-slate-800">
-                          {stats.pctHome}% / {stats.pctDraw}% / {stats.pctAway}%
-                        </strong>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {predsForMatch.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-                      <p className="font-black text-slate-950">Ingen bud endnu</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">
-                        Når deltagerne har afgivet kampbud, vises de i tabellen her.
+            <>
+              {/* Afsluttede kampe */}
+              <details className="group">
+                <SectionToggle
+                  count={finishedMatches.length}
+                  defaultOpen={false}
+                  title="Afsluttede kampe"
+                />
+                <div className="space-y-4 pt-3">
+                  {finishedMatches.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                      <p className="text-sm font-semibold text-slate-400">
+                        Ingen afsluttede kampe endnu
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-lg border border-slate-200">
-                      <table className="min-w-[38rem] w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-xs font-black uppercase text-slate-400">
-                          <tr>
-                            <th className="px-3 py-2">Deltager</th>
-                            <th className="px-3 py-2">Bud</th>
-                            <th className="px-3 py-2">Udfald</th>
-                            <th className="px-3 py-2 text-right">Point</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {predsForMatch.map(({ participant, pred }) => {
-                            const isCurrentUser = participant.id === user.id;
-                            const home = pred.predicted_home_score;
-                            const away = pred.predicted_away_score;
-
-                            return (
-                              <tr
-                                className={isCurrentUser ? "bg-pitch-50/60" : "bg-white"}
-                                key={participant.id}
-                              >
-                                <td className="whitespace-nowrap px-3 py-2 font-bold text-slate-950">
-                                  {participant.display_name}
-                                  {isCurrentUser ? (
-                                    <span className="ml-2 rounded bg-pitch-100 px-1.5 py-0.5 text-[0.65rem] font-black uppercase text-pitch-700">
-                                      Dig
-                                    </span>
-                                  ) : null}
-                                </td>
-                                <td className="px-3 py-2">
-                                  <span
-                                    className={`inline-flex rounded px-2 py-1 text-xs font-black ${predictionResultClass(
-                                      { home, away },
-                                      match
-                                    )}`}
-                                  >
-                                    {home}-{away}
-                                  </span>
-                                </td>
-                                <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-600">
-                                  {outcomeLabel(home, away)}
-                                </td>
-                                <td className="whitespace-nowrap px-3 py-2 text-right font-black text-slate-950">
-                                  {match.status === "finished"
-                                    ? pred.total_points
-                                    : "Ikke afgjort"}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                    finishedMatches.map((match) => (
+                      <MatchCard
+                        key={match.id}
+                        currentUserId={user.id}
+                        match={match}
+                        matchPredMap={matchPredMap}
+                        participants={participants}
+                      />
+                    ))
                   )}
-                </article>
-              );
-            })
+                </div>
+              </details>
+
+              {/* Kommende kampe */}
+              <details className="group" open>
+                <SectionToggle
+                  count={upcomingMatches.length}
+                  defaultOpen
+                  title="Kommende kampe"
+                />
+                <div className="space-y-4 pt-3">
+                  {upcomingMatches.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                      <p className="text-sm font-semibold text-slate-400">
+                        Ingen kommende kampe
+                      </p>
+                    </div>
+                  ) : (
+                    upcomingMatches.map((match) => (
+                      <MatchCard
+                        key={match.id}
+                        currentUserId={user.id}
+                        match={match}
+                        matchPredMap={matchPredMap}
+                        participants={participants}
+                      />
+                    ))
+                  )}
+                </div>
+              </details>
+            </>
           )}
         </section>
       ) : (

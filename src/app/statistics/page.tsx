@@ -40,6 +40,7 @@ export default async function StatisticsPage() {
   const [
     { count: matchCount },
     { count: finishedCount },
+    { count: groupStageCount },
     { count: stmtCount },
     { data: settingsData },
     { data: goalData },
@@ -50,6 +51,7 @@ export default async function StatisticsPage() {
   ] = await Promise.all([
     supabase.from("matches").select("*", { count: "exact", head: true }),
     supabase.from("matches").select("*", { count: "exact", head: true }).eq("status", "finished"),
+    supabase.from("matches").select("*", { count: "exact", head: true }).eq("phase", "group_stage"),
     supabase.from("statements").select("*", { count: "exact", head: true }),
     supabase.from("app_settings").select("*").single(),
     supabase
@@ -76,6 +78,7 @@ export default async function StatisticsPage() {
   const settings = settingsData as AppSettings | null;
   const matches = matchCount ?? 0;
   const finished = finishedCount ?? 0;
+  const groupStage = groupStageCount ?? 0;
   const stmts = stmtCount ?? 0;
 
   const goals = (goalData ?? []) as GoalRow[];
@@ -84,11 +87,8 @@ export default async function StatisticsPage() {
   const snapshots = (snapshotData ?? []) as SnapshotRow[];
   const finishedMatchIds = new Set((finishedMatchData ?? []).map((m: { id: number }) => m.id));
   const users = leaders.length;
-  const preds = leaders.reduce((sum, leader) => sum + leader.predictions_count, 0);
-  const stmtPreds = leaders.reduce(
-    (sum, leader) => sum + leader.statement_answers_count,
-    0
-  );
+  const preds = leaders.reduce((sum, l) => sum + l.predictions_count, 0);
+  const stmtPreds = leaders.reduce((sum, l) => sum + l.statement_answers_count, 0);
 
   const tournamentStarted = finished > 0;
 
@@ -104,24 +104,29 @@ export default async function StatisticsPage() {
   const draws = goals.filter((m) => m.home_score_90 === m.away_score_90).length;
   const awayWins = goals.filter((m) => (m.home_score_90 ?? 0) < (m.away_score_90 ?? 0)).length;
 
-  // ── Prediction stats ───────────────────────────────────────────────────────
+  // ── Prediction/participation stats ─────────────────────────────────────────
   const maxPreds = users * matches;
   const predPct = maxPreds > 0 ? Math.round((preds / maxPreds) * 100) : 0;
   const maxStmtPreds = users * stmts;
   const stmtPredPct = maxStmtPreds > 0 ? Math.round((stmtPreds / maxStmtPreds) * 100) : 0;
 
-  // Per-user prediction stats (for most optimistic / most defensive)
+  // ── Per-user stats (computed from finished matches only for point averages) ─
   type UserPredStats = {
     user_id: string;
     display_name: string;
     avgHome: number;
     avgAway: number;
-    avgTotal: number;
     perfect: number;
+    pts2: number;
+    pts1: number;
+    pts0: number;
+    pts1plus: number;
     correct: number;
     avgPts: number;
     submitted: number;
+    finishedCount: number;
   };
+
   const predByUser = new Map<string, PredRow[]>();
   for (const p of allPreds) {
     const list = predByUser.get(p.user_id) ?? [];
@@ -136,32 +141,65 @@ export default async function StatisticsPage() {
     const nFinished = finishedPreds.length;
     const avgHome = n > 0 ? userPreds.reduce((s, p) => s + p.predicted_home_score, 0) / n : 0;
     const avgAway = n > 0 ? userPreds.reduce((s, p) => s + p.predicted_away_score, 0) / n : 0;
-    const avgTotal = nFinished > 0 ? finishedPreds.reduce((s, p) => s + p.total_points, 0) / nFinished : 0;
+    const avgTotal =
+      nFinished > 0 ? finishedPreds.reduce((s, p) => s + p.total_points, 0) / nFinished : 0;
+    const perfect = finishedPreds.filter((p) => p.total_points === 3).length;
+    const pts2 = finishedPreds.filter((p) => p.total_points === 2).length;
+    const pts1 = finishedPreds.filter((p) => p.total_points === 1).length;
+    const pts0 = finishedPreds.filter((p) => p.total_points === 0).length;
+    const pts1plus = finishedPreds.filter((p) => p.total_points >= 1).length;
     return {
       user_id: l.user_id,
       display_name: l.display_name,
       avgHome,
       avgAway,
-      avgTotal,
-      perfect: l.perfect_results,
+      perfect,
+      pts2,
+      pts1,
+      pts0,
+      pts1plus,
       correct: l.correct_outcomes,
       avgPts: avgTotal,
       submitted: n,
+      finishedCount: nFinished,
     };
   });
 
+  const eligible = userPredStats.filter((s) => s.finishedCount > 0);
+  const highestAvgPts = [...eligible].sort((a, b) => b.avgPts - a.avgPts)[0];
+  const mostPerfect = [...eligible].sort((a, b) => b.perfect - a.perfect)[0];
+  const mostPts2 = [...eligible].sort((a, b) => b.pts2 - a.pts2)[0];
+  const mostPts1 = [...eligible].sort((a, b) => b.pts1 - a.pts1)[0];
+  const mostPts0 = [...eligible].sort((a, b) => b.pts0 - a.pts0)[0];
+  const mostPts1plus = [...eligible].sort((a, b) => b.pts1plus - a.pts1plus)[0];
   const mostOptimistic = [...userPredStats].sort(
     (a, b) => b.avgHome + b.avgAway - (a.avgHome + a.avgAway)
   )[0];
   const mostDefensive = [...userPredStats].sort(
     (a, b) => a.avgHome + a.avgAway - (b.avgHome + b.avgAway)
   )[0];
-  const highestAvgPts = [...userPredStats].filter(s => s.submitted > 0).sort(
-    (a, b) => b.avgPts - a.avgPts
-  )[0];
+
+  // ── Forecast ───────────────────────────────────────────────────────────────
+  const remainingMatches = matches - finished;
+  const projectedPlayers = [...leaders]
+    .map((l) => {
+      const stat = userPredStats.find((u) => u.user_id === l.user_id);
+      if (!stat || stat.finishedCount === 0) return { ...l, projected: l.total_points };
+      const projectedMatch = l.match_points + Math.round(stat.avgPts * remainingMatches);
+      return { ...l, projected: projectedMatch + l.statement_points };
+    })
+    .sort((a, b) => b.projected - a.projected);
+
+  const groupStageGoalsProjected =
+    finished > 0 && groupStage > 0
+      ? Math.round(parseFloat(avgGoalsPerMatch) * groupStage)
+      : null;
+  const tournamentGoalsProjected =
+    finished > 0 && matches > 0
+      ? Math.round(parseFloat(avgGoalsPerMatch) * matches)
+      : null;
 
   // ── Chart data ─────────────────────────────────────────────────────────────
-  // Only show snapshots from the first day any user scored points
   const firstPointsDate = snapshots.find((s) => s.total_points > 0)?.snapshotted_at.slice(0, 10);
   const chartSnapshots = firstPointsDate
     ? snapshots.filter((s) => s.snapshotted_at.slice(0, 10) >= firstPointsDate)
@@ -178,7 +216,7 @@ export default async function StatisticsPage() {
     name: l.display_name,
     isMe: l.user_id === user.id,
     data: (snapshotsByUser.get(l.user_id) ?? []).map((s) => ({
-      date: s.snapshotted_at.slice(5, 10), // "MM-DD"
+      date: s.snapshotted_at.slice(5, 10),
       points: s.total_points,
     })),
   }));
@@ -211,6 +249,224 @@ export default async function StatisticsPage() {
         </div>
       )}
 
+      {/* ── Spillerstatistik ──────────────────────────────────────────────── */}
+      {tournamentStarted && userPredStats.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-black text-slate-950">Spillerstatistik</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {highestAvgPts && (
+              <StatCard
+                detail={`${highestAvgPts.display_name} · ${highestAvgPts.avgPts.toFixed(2)} pt/kamp`}
+                label="Bedst point pr. kamp"
+                tone="gold"
+                value={highestAvgPts.display_name.split(" ")[0]}
+              />
+            )}
+            {mostPts1plus && mostPts1plus.pts1plus > 0 && (
+              <StatCard
+                detail={`${mostPts1plus.display_name} · ${mostPts1plus.pts1plus} kampe med ≥1 pt`}
+                label="Flest kampe med point"
+                tone="green"
+                value={mostPts1plus.display_name.split(" ")[0]}
+              />
+            )}
+            {mostPerfect && mostPerfect.perfect > 0 && (
+              <StatCard
+                detail={`${mostPerfect.display_name} · ${mostPerfect.perfect} præcise (3 pt)`}
+                label="Flest præcise resultater"
+                tone="gold"
+                value={mostPerfect.display_name.split(" ")[0]}
+              />
+            )}
+            {mostPts2 && mostPts2.pts2 > 0 && (
+              <StatCard
+                detail={`${mostPts2.display_name} · ${mostPts2.pts2} kampe med 2 pt`}
+                label="Flest 2-point kampe"
+                value={mostPts2.display_name.split(" ")[0]}
+              />
+            )}
+            {mostPts1 && mostPts1.pts1 > 0 && (
+              <StatCard
+                detail={`${mostPts1.display_name} · ${mostPts1.pts1} kampe med 1 pt`}
+                label="Flest 1-point kampe"
+                value={mostPts1.display_name.split(" ")[0]}
+              />
+            )}
+            {mostPts0 && mostPts0.pts0 > 0 && (
+              <StatCard
+                detail={`${mostPts0.display_name} · ${mostPts0.pts0} kampe med 0 pt`}
+                label="Flest kampe uden point"
+                tone="neutral"
+                value={mostPts0.display_name.split(" ")[0]}
+              />
+            )}
+            {mostOptimistic && (
+              <StatCard
+                detail={`Snit ${(mostOptimistic.avgHome + mostOptimistic.avgAway).toFixed(1)} mål pr. kamp`}
+                label="Mest optimistisk"
+                value={mostOptimistic.display_name.split(" ")[0]}
+              />
+            )}
+            {mostDefensive && (
+              <StatCard
+                detail={`Snit ${(mostDefensive.avgHome + mostDefensive.avgAway).toFixed(1)} mål pr. kamp`}
+                label="Mest defensiv"
+                value={mostDefensive.display_name.split(" ")[0]}
+              />
+            )}
+          </div>
+
+          {/* Detailed player table */}
+          <div className="card overflow-hidden p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="px-4 py-2.5 text-left text-xs font-black uppercase text-slate-500">
+                      Spiller
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
+                      Bud
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500 text-cup-500">
+                      3 pt
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
+                      2 pt
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
+                      1 pt
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-400">
+                      0 pt
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
+                      Pt/kamp
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...userPredStats]
+                    .sort((a, b) => b.avgPts - a.avgPts)
+                    .map((s) => (
+                      <tr
+                        key={s.user_id}
+                        className={`border-b border-slate-100 last:border-b-0 ${
+                          s.user_id === user.id ? "bg-pitch-50" : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <td className="px-4 py-2.5 font-bold text-slate-800">
+                          {s.display_name}
+                          {s.user_id === user.id && (
+                            <span className="ml-1 text-xs font-black text-pitch-500">(dig)</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-500">
+                          {s.submitted}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <span
+                            className={`font-bold ${
+                              s.perfect > 0 ? "text-cup-500" : "text-slate-300"
+                            }`}
+                          >
+                            {s.perfect}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-600">
+                          {s.pts2}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-500">
+                          {s.pts1}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-300">
+                          {s.pts0}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-black text-slate-950">
+                          {s.finishedCount > 0 ? s.avgPts.toFixed(2) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Forudsigelser ─────────────────────────────────────────────────── */}
+      {tournamentStarted && (
+        <section className="space-y-3">
+          <h2 className="text-base font-black text-slate-950">Forudsigelser</h2>
+          <p className="text-xs font-semibold text-slate-400">
+            Estimater baseret på nuværende rate · Præcisionen stiger jo flere kampe der spilles
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {groupStageGoalsProjected !== null && (
+              <StatCard
+                detail={`${finished} kampe spillet · snit ${avgGoalsPerMatch} mål/kamp`}
+                label="Forventede mål – grundspil"
+                tone="gold"
+                value={String(groupStageGoalsProjected)}
+              />
+            )}
+            {tournamentGoalsProjected !== null && (
+              <StatCard
+                detail={`${matches} kampe i alt · snit ${avgGoalsPerMatch} mål/kamp`}
+                label="Forventede mål – hele turneringen"
+                tone="neutral"
+                value={String(tournamentGoalsProjected)}
+              />
+            )}
+          </div>
+
+          {projectedPlayers.length > 0 && (
+            <div className="card overflow-hidden p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[320px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-4 py-2.5 text-left text-xs font-black uppercase text-slate-500">
+                        Spiller
+                      </th>
+                      <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
+                        Point nu
+                      </th>
+                      <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
+                        Estimeret slutpoint
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projectedPlayers.map((l) => (
+                      <tr
+                        key={l.user_id}
+                        className={`border-b border-slate-100 last:border-b-0 ${
+                          l.user_id === user.id ? "bg-pitch-50" : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <td className="px-4 py-2.5 font-bold text-slate-800">
+                          {l.display_name}
+                          {l.user_id === user.id && (
+                            <span className="ml-1 text-xs font-black text-pitch-500">(dig)</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-500">
+                          {l.total_points}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-black text-slate-950">
+                          ~{l.projected}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ── Deltagere ────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-slate-950">Deltagere</h2>
@@ -236,7 +492,7 @@ export default async function StatisticsPage() {
         </div>
       </section>
 
-      {/* ── Kampresultater (only when tournament has started) ─────────────── */}
+      {/* ── Kampresultater ────────────────────────────────────────────────── */}
       {tournamentStarted && (
         <section className="space-y-3">
           <h2 className="text-base font-black text-slate-950">Kampresultater</h2>
@@ -278,104 +534,7 @@ export default async function StatisticsPage() {
         </section>
       )}
 
-      {/* ── Spillerstatistik (only when predictions + results exist) ─────── */}
-      {tournamentStarted && userPredStats.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-base font-black text-slate-950">Spillerstatistik</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {highestAvgPts && (
-              <StatCard
-                detail={`${highestAvgPts.display_name} · ${highestAvgPts.avgPts.toFixed(2)} pt/kamp`}
-                label="Bedst point pr. kamp"
-                tone="gold"
-                value={highestAvgPts.display_name.split(" ")[0]}
-              />
-            )}
-            {mostOptimistic && (
-              <StatCard
-                detail={`Snit ${(mostOptimistic.avgHome + mostOptimistic.avgAway).toFixed(1)} mål pr. kamp`}
-                label="Mest optimistisk"
-                value={mostOptimistic.display_name.split(" ")[0]}
-              />
-            )}
-            {mostDefensive && (
-              <StatCard
-                detail={`Snit ${(mostDefensive.avgHome + mostDefensive.avgAway).toFixed(1)} mål pr. kamp`}
-                label="Mest defensiv"
-                value={mostDefensive.display_name.split(" ")[0]}
-              />
-            )}
-          </div>
-
-          {/* Mini leaderboard table */}
-          <div className="card overflow-hidden p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[400px] text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-4 py-2.5 text-left text-xs font-black uppercase text-slate-500">
-                      Spiller
-                    </th>
-                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
-                      Bud
-                    </th>
-                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
-                      Perfekte
-                    </th>
-                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
-                      Udfald
-                    </th>
-                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
-                      Pt/kamp
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {userPredStats
-                    .sort((a, b) => b.avgPts - a.avgPts)
-                    .map((s) => (
-                      <tr
-                        key={s.user_id}
-                        className={`border-b border-slate-100 last:border-b-0 ${
-                          s.user_id === user.id ? "bg-pitch-50" : "hover:bg-slate-50"
-                        }`}
-                      >
-                        <td className="px-4 py-2.5 font-bold text-slate-800">
-                          {s.display_name}
-                          {s.user_id === user.id && (
-                            <span className="ml-1 text-xs font-black text-pitch-500">
-                              (dig)
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-slate-500">
-                          {s.submitted}
-                        </td>
-                        <td className="px-4 py-2.5 text-right">
-                          <span
-                            className={`font-bold ${
-                              s.perfect > 0 ? "text-cup-500" : "text-slate-400"
-                            }`}
-                          >
-                            {s.perfect}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-slate-600">
-                          {s.correct}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-black text-slate-950">
-                          {s.submitted > 0 ? s.avgPts.toFixed(2) : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── Udvikling over tid (chart) ─────────────────────────────────────── */}
+      {/* ── Udvikling over tid ─────────────────────────────────────────────── */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-slate-950">Udvikling over tid</h2>
         {chartSnapshots.length < 2 ? (
