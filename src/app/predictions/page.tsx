@@ -420,7 +420,10 @@ export default async function PredictionsPage({
     stmtPredMap.set(`${p.user_id}:${p.statement_id}`, p);
   }
 
-  const finishedMatches = matches.filter((m) => m.status === "finished");
+  const finishedMatches = matches
+    .filter((m) => m.status === "finished")
+    .slice()
+    .reverse();
   const upcomingMatches = matches.filter((m) => m.status !== "finished");
 
   return (

@@ -342,7 +342,7 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
   }
 
   const upcoming = matches.filter((m) => m.status !== "finished");
-  const finished = matches.filter((m) => m.status === "finished");
+  const finished = matches.filter((m) => m.status === "finished").slice().reverse();
 
   return (
     <div className="space-y-4">
