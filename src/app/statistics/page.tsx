@@ -81,6 +81,14 @@ function formatDay(iso: string) {
   return `${d.getUTCDate()}. ${DANISH_MONTHS[d.getUTCMonth()]}`;
 }
 
+function agreementBg(pct: number, isDiag: boolean): string {
+  if (isDiag) return "hsl(0, 0%, 88%)";
+  // 0% → red (hue 0), 100% → blue (hue 240)
+  const hue = Math.round((pct / 100) * 240);
+  const sat = Math.round(50 + Math.abs(pct - 50) * 0.8);
+  return `hsl(${hue}, ${sat}%, 91%)`;
+}
+
 export default async function StatisticsPage() {
   const { user } = await requireUser();
   const supabase = await createClient();
@@ -460,6 +468,29 @@ export default async function StatisticsPage() {
       }
     }
   }
+
+  // ── Enighed-matrix — predicted outcome agreement between all pairs ─────────
+  // Builds a Map<userId, Map<matchId, H|D|A>> across ALL submitted predictions
+  const userOutcomeByMatch = new Map<string, Map<number, MatchOutcome>>();
+  for (const [userId, preds] of predByUser.entries()) {
+    const matchOutcomes = new Map<number, MatchOutcome>();
+    for (const p of preds) matchOutcomes.set(p.match_id, getPredOutcome(p));
+    userOutcomeByMatch.set(userId, matchOutcomes);
+  }
+
+  type AgreementCell = { pct: number; both: number };
+  const agreementMatrix: AgreementCell[][] = leaders.map((l1) => {
+    const map1 = userOutcomeByMatch.get(l1.user_id) ?? new Map<number, MatchOutcome>();
+    return leaders.map((l2) => {
+      if (l1.user_id === l2.user_id) return { pct: 100, both: map1.size };
+      const map2 = userOutcomeByMatch.get(l2.user_id) ?? new Map<number, MatchOutcome>();
+      let both = 0, same = 0;
+      for (const [matchId, o1] of map1) {
+        if (map2.has(matchId)) { both++; if (map2.get(matchId) === o1) same++; }
+      }
+      return { pct: both > 0 ? Math.round((same / both) * 100) : 0, both };
+    });
+  });
 
   // ── Forecast ───────────────────────────────────────────────────────────────
   const remainingMatches = matches - finished;
@@ -1082,6 +1113,69 @@ export default async function StatisticsPage() {
           Pointoverblik pr. spiller: se <strong>Leaderboard</strong>. Alle kampbud og udsagn:{" "}
           <strong>Alles bud</strong>.
         </div>
+      )}
+
+      {/* ── Enighed-matrix ────────────────────────────────────────────────── */}
+      {leaders.length >= 2 && agreementMatrix.length >= 2 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-black text-slate-950">Enighed</h2>
+          <p className="text-xs font-semibold text-slate-400">
+            Andel af kampe, hvor to spillere har gættet det samme udfald (hjemmesejr / uafgjort / udesejr).
+            Blå = mest enig · Rød = mindst enig.
+          </p>
+          <div className="card overflow-hidden p-0">
+            <div className="overflow-x-auto">
+              <table className="text-xs">
+                <thead>
+                  <tr>
+                    {/* empty corner */}
+                    <th className="min-w-[90px] border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-left" />
+                    {leaders.map((l) => (
+                      <th
+                        key={l.user_id}
+                        className="min-w-[52px] border-b border-slate-200 bg-slate-50 px-2 py-2 text-center font-black text-slate-600"
+                        title={l.display_name}
+                      >
+                        {l.display_name.split(" ")[0]}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaders.map((l1, i) => (
+                    <tr key={l1.user_id} className="border-b border-slate-100 last:border-b-0">
+                      <th
+                        className="border-r border-slate-200 bg-slate-50 px-3 py-2 text-left font-black text-slate-700"
+                        title={l1.display_name}
+                      >
+                        {l1.display_name.split(" ")[0]}
+                      </th>
+                      {leaders.map((l2, j) => {
+                        const cell = agreementMatrix[i][j];
+                        const isDiag = i === j;
+                        const hasData = cell.both > 0;
+                        return (
+                          <td
+                            key={l2.user_id}
+                            className="px-2 py-2 text-center font-black text-slate-800"
+                            style={{ backgroundColor: hasData ? agreementBg(cell.pct, isDiag) : undefined }}
+                            title={
+                              isDiag
+                                ? l1.display_name
+                                : `${l1.display_name.split(" ")[0]} & ${l2.display_name.split(" ")[0]}: ${cell.pct}% ens (${cell.both} kampe)`
+                            }
+                          >
+                            {isDiag ? "—" : hasData ? `${cell.pct}%` : "—"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       )}
     </div>
   );
