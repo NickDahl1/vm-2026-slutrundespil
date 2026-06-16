@@ -212,14 +212,21 @@ export default async function StatisticsPage() {
     snapshotsByUser.set(s.user_id, list);
   }
 
-  const chartSeries: SnapshotSeries[] = leaders.map((l) => ({
-    name: l.display_name,
-    isMe: l.user_id === user.id,
-    data: (snapshotsByUser.get(l.user_id) ?? []).map((s) => ({
+  // Add a live "today" datapoint from the current leaderboard so the chart
+  // is never a day behind (the nightly snapshot job may not have run yet).
+  const todayMMDD = new Date().toISOString().slice(5, 10);
+  const chartSeries: SnapshotSeries[] = leaders.map((l) => {
+    const snapData = (snapshotsByUser.get(l.user_id) ?? []).map((s) => ({
       date: s.snapshotted_at.slice(5, 10),
       points: s.total_points,
-    })),
-  }));
+    }));
+    const hasToday = snapData.some((d) => d.date === todayMMDD);
+    const data = hasToday
+      ? snapData
+      : [...snapData, { date: todayMMDD, points: l.total_points }];
+    return { name: l.display_name, isMe: l.user_id === user.id, data };
+  });
+  const hasChartData = tournamentStarted && chartSeries.some((s) => s.data.length >= 2);
 
   return (
     <div className="space-y-8">
@@ -248,6 +255,25 @@ export default async function StatisticsPage() {
           )}
         </div>
       )}
+
+      {/* ── Udvikling over tid ─────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h2 className="text-base font-black text-slate-950">Udvikling over tid</h2>
+        {!hasChartData ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center">
+            <p className="text-sm font-semibold text-slate-400">
+              Grafen vises, når der er mindst to dages data (fra 11. juni 2026).
+            </p>
+          </div>
+        ) : (
+          <div className="card p-4">
+            <p className="mb-4 text-xs font-semibold text-slate-400">
+              Samlet point pr. dag · Din linje er tykkere
+            </p>
+            <LeaderboardChart series={chartSeries} />
+          </div>
+        )}
+      </section>
 
       {/* ── Spillerstatistik ──────────────────────────────────────────────── */}
       {tournamentStarted && userPredStats.length > 0 && (
@@ -533,25 +559,6 @@ export default async function StatisticsPage() {
           </div>
         </section>
       )}
-
-      {/* ── Udvikling over tid ─────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h2 className="text-base font-black text-slate-950">Udvikling over tid</h2>
-        {chartSnapshots.length < 2 ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center">
-            <p className="text-sm font-semibold text-slate-400">
-              Grafen vises, når der er mindst to daglige snapshots (fra 11. juni 2026).
-            </p>
-          </div>
-        ) : (
-          <div className="card p-4">
-            <p className="mb-4 text-xs font-semibold text-slate-400">
-              Samlet point pr. dag · Din linje er tykkere
-            </p>
-            <LeaderboardChart series={chartSeries} />
-          </div>
-        )}
-      </section>
 
       {tournamentStarted && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">

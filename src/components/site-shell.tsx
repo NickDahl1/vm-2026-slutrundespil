@@ -25,7 +25,12 @@ export async function SiteShell({ children }: { children: ReactNode }) {
   const navigation = user
     ? [
         ...userNavigation,
-        ...(profile?.is_admin ? [{ href: "/admin", label: "Admin" }] : []),
+        ...(profile?.is_admin
+          ? [
+              { href: "/admin/matches", label: "Rediger kampe" },
+              { href: "/admin", label: "Admin" },
+            ]
+          : []),
       ]
     : guestNavigation;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { Match } from "@/lib/types";
 import { STATUS_LABELS, PHASE_LABELS } from "@/lib/types";
 import { formatDanishDateTime } from "@/lib/date-format";
@@ -37,6 +37,9 @@ function MatchForm({
   match?: Match;
   action: (formData: FormData) => Promise<void>;
 }) {
+  const awayScoreRef = useRef<HTMLInputElement>(null);
+  const statusRef = useRef<HTMLSelectElement>(null);
+
   return (
     <form action={action} className="space-y-4">
       {match && <input type="hidden" name="id" value={match.id} />}
@@ -137,6 +140,7 @@ function MatchForm({
             Status *
           </label>
           <select
+            ref={statusRef}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
             defaultValue={match?.status ?? "scheduled"}
             id="status"
@@ -165,6 +169,9 @@ function MatchForm({
               min="0"
               name="home_score_90"
               type="number"
+              onChange={(e) => {
+                if (e.target.value !== "") awayScoreRef.current?.focus();
+              }}
             />
           </div>
           <div className="space-y-1">
@@ -172,12 +179,16 @@ function MatchForm({
               Udemål
             </label>
             <input
+              ref={awayScoreRef}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
               defaultValue={match?.away_score_90 ?? ""}
               id="away_score_90"
               min="0"
               name="away_score_90"
               type="number"
+              onChange={(e) => {
+                if (e.target.value !== "") statusRef.current?.focus();
+              }}
             />
           </div>
         </div>
