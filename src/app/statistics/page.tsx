@@ -441,6 +441,26 @@ export default async function StatisticsPage() {
   }
   const comebackKid = topTied(comebackCandidates, (s) => s.bestGain.gain);
 
+  // ── Dage som nr. 1 — days each player led the leaderboard ────────────────
+  const snapshotsByDate = new Map<string, SnapshotRow[]>();
+  for (const s of snapshots) {
+    const day = s.snapshotted_at.slice(0, 10);
+    const list = snapshotsByDate.get(day) ?? [];
+    list.push(s);
+    snapshotsByDate.set(day, list);
+  }
+  const daysAtTop = new Map<string, number>();
+  for (const [, daySnaps] of snapshotsByDate.entries()) {
+    if (daySnaps.length === 0) continue;
+    const maxPts = Math.max(...daySnaps.map((s) => s.total_points));
+    if (maxPts === 0) continue;
+    for (const s of daySnaps) {
+      if (s.total_points === maxPts) {
+        daysAtTop.set(s.user_id, (daysAtTop.get(s.user_id) ?? 0) + 1);
+      }
+    }
+  }
+
   // ── Forecast ───────────────────────────────────────────────────────────────
   const remainingMatches = matches - finished;
   const projectedPlayers = [...leaders]
@@ -837,7 +857,7 @@ export default async function StatisticsPage() {
           {/* Detailed player table */}
           <div className="card overflow-hidden p-0">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] text-sm">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="px-4 py-2.5 text-left text-xs font-black uppercase text-slate-500">
@@ -860,6 +880,9 @@ export default async function StatisticsPage() {
                     </th>
                     <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500">
                       Pt/kamp
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-black uppercase text-slate-500" title="Antal dage som delt førsteplads (flest point)">
+                      Dage #1
                     </th>
                   </tr>
                 </thead>
@@ -902,6 +925,9 @@ export default async function StatisticsPage() {
                         </td>
                         <td className="px-4 py-2.5 text-right font-black text-slate-950">
                           {s.finishedCount > 0 ? s.avgPts.toFixed(2) : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-600">
+                          {daysAtTop.get(s.user_id) ?? 0}
                         </td>
                       </tr>
                     ))}
