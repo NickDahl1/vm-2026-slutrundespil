@@ -199,6 +199,100 @@ function MatchForm({
   );
 }
 
+function MatchCard({
+  match,
+  pendingDelete,
+  setPendingDelete,
+  startEdit,
+}: {
+  match: Match;
+  pendingDelete: number | null;
+  setPendingDelete: (id: number | null) => void;
+  startEdit: (match: Match) => void;
+}) {
+  return (
+    <article className="card space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="badge">#{match.match_no}</span>
+            <span className="badge">{PHASE_LABELS[match.phase]}</span>
+            {match.group_name && (
+              <span className="badge">{match.group_name}</span>
+            )}
+          </div>
+          <p className="mt-2 font-black text-slate-950">
+            {match.home_team} – {match.away_team}
+          </p>
+          {match.home_score_90 !== null && match.away_score_90 !== null && (
+            <p className="text-sm font-black text-pitch-700">
+              {match.home_score_90} – {match.away_score_90}
+            </p>
+          )}
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            {formatDanishDateTime(match.kickoff_at)} · {STATUS_LABELS[match.status]}
+          </p>
+          {match.manually_corrected && (
+            <p className="mt-1 text-xs font-semibold text-amber-600">
+              🔒 Manuelt rettet — auto-sync deaktiveret
+            </p>
+          )}
+        </div>
+      </div>
+
+      {pendingDelete === match.id ? (
+        <div className="flex items-center gap-3 rounded-lg bg-red-50 p-3">
+          <p className="flex-1 text-sm font-bold text-red-700">Slet denne kamp?</p>
+          <button
+            className="text-sm font-bold text-slate-600"
+            onClick={() => setPendingDelete(null)}
+            type="button"
+          >
+            Annuller
+          </button>
+          <form action={deleteMatchAction}>
+            <input name="id" type="hidden" value={match.id} />
+            <button
+              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-black text-white"
+              type="submit"
+            >
+              Ja, slet
+            </button>
+          </form>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm"
+            onClick={() => startEdit(match)}
+            type="button"
+          >
+            Rediger
+          </button>
+          <button
+            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-600 shadow-sm"
+            onClick={() => setPendingDelete(match.id)}
+            type="button"
+          >
+            Slet
+          </button>
+          {match.manually_corrected && (
+            <form action={resetManuallyCorrectedAction}>
+              <input name="id" type="hidden" value={match.id} />
+              <button
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700 shadow-sm"
+                type="submit"
+              >
+                Tillad auto-sync
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
 export function AdminMatchesClient({ matches }: { matches: Match[] }) {
   const [mode, setMode] = useState<Mode>("list");
   const [editMatch, setEditMatch] = useState<Match | null>(null);
@@ -247,6 +341,9 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
     );
   }
 
+  const upcoming = matches.filter((m) => m.status !== "finished");
+  const finished = matches.filter((m) => m.status === "finished");
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -270,87 +367,65 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {matches.map((match) => (
-            <article className="card space-y-3" key={match.id}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="badge">#{match.match_no}</span>
-                    <span className="badge">{PHASE_LABELS[match.phase]}</span>
-                    {match.group_name && (
-                      <span className="badge">{match.group_name}</span>
-                    )}
-                  </div>
-                  <p className="mt-2 font-black text-slate-950">
-                    {match.home_team} – {match.away_team}
-                  </p>
-                  {match.home_score_90 !== null && match.away_score_90 !== null && (
-                    <p className="text-sm font-black text-pitch-700">
-                      {match.home_score_90} – {match.away_score_90}
-                    </p>
-                  )}
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    {formatDanishDateTime(match.kickoff_at)} · {STATUS_LABELS[match.status]}
-                  </p>
-                  {match.manually_corrected && (
-                    <p className="mt-1 text-xs font-semibold text-amber-600">
-                      🔒 Manuelt rettet — auto-sync deaktiveret
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {pendingDelete === match.id ? (
-                <div className="flex items-center gap-3 rounded-lg bg-red-50 p-3">
-                  <p className="flex-1 text-sm font-bold text-red-700">Slet denne kamp?</p>
-                  <button
-                    className="text-sm font-bold text-slate-600"
-                    onClick={() => setPendingDelete(null)}
-                    type="button"
-                  >
-                    Annuller
-                  </button>
-                  <form action={deleteMatchAction}>
-                    <input name="id" type="hidden" value={match.id} />
-                    <button
-                      className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-black text-white"
-                      type="submit"
-                    >
-                      Ja, slet
-                    </button>
-                  </form>
+          {/* Kommende kampe — open by default */}
+          <details className="group" open>
+            <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+              <span className="font-black text-slate-800">
+                Kommende kampe{" "}
+                <span className="font-semibold text-slate-400">({upcoming.length})</span>
+              </span>
+              <svg className="h-4 w-4 flex-shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </summary>
+            <div className="space-y-3 pt-3">
+              {upcoming.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                  <p className="text-sm font-semibold text-slate-400">Ingen kommende kampe</p>
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm"
-                    onClick={() => startEdit(match)}
-                    type="button"
-                  >
-                    Rediger
-                  </button>
-                  <button
-                    className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-600 shadow-sm"
-                    onClick={() => setPendingDelete(match.id)}
-                    type="button"
-                  >
-                    Slet
-                  </button>
-                  {match.manually_corrected && (
-                    <form action={resetManuallyCorrectedAction}>
-                      <input name="id" type="hidden" value={match.id} />
-                      <button
-                        className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700 shadow-sm"
-                        type="submit"
-                      >
-                        Tillad auto-sync
-                      </button>
-                    </form>
-                  )}
-                </div>
+                upcoming.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    pendingDelete={pendingDelete}
+                    setPendingDelete={setPendingDelete}
+                    startEdit={startEdit}
+                  />
+                ))
               )}
-            </article>
-          ))}
+            </div>
+          </details>
+
+          {/* Afsluttede kampe — collapsed by default */}
+          <details className="group">
+            <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+              <span className="font-black text-slate-800">
+                Afsluttede kampe{" "}
+                <span className="font-semibold text-slate-400">({finished.length})</span>
+              </span>
+              <svg className="h-4 w-4 flex-shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </summary>
+            <div className="space-y-3 pt-3">
+              {finished.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                  <p className="text-sm font-semibold text-slate-400">Ingen afsluttede kampe endnu</p>
+                </div>
+              ) : (
+                finished.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    pendingDelete={pendingDelete}
+                    setPendingDelete={setPendingDelete}
+                    startEdit={startEdit}
+                  />
+                ))
+              )}
+            </div>
+          </details>
         </div>
       )}
     </div>
