@@ -166,8 +166,16 @@ export default async function DashboardPage({
       : `Frist: ${formatDanishDateTime(settings.group_stage_lock_at)}`
     : "Ingen frist sat endnu";
 
+  const lastPlace = leaders.length > 0 ? leaders[leaders.length - 1] : null;
+
   return (
     <div className="space-y-6">
+      {lastPlace && (
+        <p className="text-2xl font-black text-slate-950">
+          Spilleren på sidstepladsen er:{" "}
+          <span className="text-pitch-700">{lastPlace.display_name.split(" ")[0]}</span>
+        </p>
+      )}
       <PageHeader
         description="Stillingen, næste kampe og dit pointoverblik."
         eyebrow="Spiller"
