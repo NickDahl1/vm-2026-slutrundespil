@@ -13,12 +13,21 @@ export default async function AdminMatchesPage({
   const params = await searchParams;
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("matches")
-    .select("*")
-    .order("match_no", { ascending: true });
+  const [{ data }, { data: teamData }] = await Promise.all([
+    supabase.from("matches").select("*").order("match_no", { ascending: true }),
+    supabase.from("matches").select("home_team, away_team"),
+  ]);
 
   const matches = (data ?? []) as Match[];
+
+  const teamNames = [
+    ...new Set(
+      (teamData ?? []).flatMap((m) => [
+        (m as { home_team: string; away_team: string }).home_team,
+        (m as { home_team: string; away_team: string }).away_team,
+      ])
+    ),
+  ].sort();
 
   return (
     <div className="space-y-5">
@@ -47,7 +56,7 @@ export default async function AdminMatchesPage({
         </button>
       </form>
 
-      <AdminMatchesClient matches={matches} />
+      <AdminMatchesClient matches={matches} teamNames={teamNames} />
     </div>
   );
 }

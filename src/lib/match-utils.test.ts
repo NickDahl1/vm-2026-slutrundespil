@@ -34,20 +34,12 @@ describe("isKnockoutOpen", () => {
 // ── isMatchRelevant ───────────────────────────────────────────────────────────
 
 describe("isMatchRelevant", () => {
-  it("group_stage match is always relevant when knockout is closed", () => {
-    expect(isMatchRelevant({ phase: "group_stage" }, false)).toBe(true);
+  it("returns true when predictions_open = true", () => {
+    expect(isMatchRelevant({ predictions_open: true })).toBe(true);
   });
 
-  it("group_stage match is always relevant when knockout is open", () => {
-    expect(isMatchRelevant({ phase: "group_stage" }, true)).toBe(true);
-  });
-
-  it("knockout_stage match is NOT relevant when knockout is closed", () => {
-    expect(isMatchRelevant({ phase: "knockout_stage" }, false)).toBe(false);
-  });
-
-  it("knockout_stage match IS relevant when knockout is open", () => {
-    expect(isMatchRelevant({ phase: "knockout_stage" }, true)).toBe(true);
+  it("returns false when predictions_open = false", () => {
+    expect(isMatchRelevant({ predictions_open: false })).toBe(false);
   });
 });
 
@@ -65,30 +57,5 @@ describe("relevantMatchCount", () => {
   it("handles zero knockout matches (before they are created)", () => {
     expect(relevantMatchCount(48, 0, false)).toBe(48);
     expect(relevantMatchCount(48, 0, true)).toBe(48);
-  });
-});
-
-// ── Integration: eligibility does not require knockout preds before open ──────
-
-describe("eligibility — knockout not required before open", () => {
-  it("group_stage only: 48 group predictions + 0 knockout = eligible when knockout closed", () => {
-    // relevantMatchCount = 48 (group only)
-    // user has 48 group predictions → eligible
-    const relevant = relevantMatchCount(48, 64, false);
-    expect(relevant).toBe(48);
-    // 48 >= 48 → true (combined with statements check separately)
-    expect(48 >= relevant).toBe(true);
-  });
-
-  it("after knockout opens: 48 group + 0 knockout = NOT eligible (missing 64 knockout)", () => {
-    const relevant = relevantMatchCount(48, 64, true);
-    expect(relevant).toBe(112);
-    // 48 < 112 → not enough
-    expect(48 >= relevant).toBe(false);
-  });
-
-  it("after knockout opens: 112 total predictions = eligible", () => {
-    const relevant = relevantMatchCount(48, 64, true);
-    expect(112 >= relevant).toBe(true);
   });
 });

@@ -11,6 +11,7 @@ export type Match = {
   status: "scheduled" | "live" | "finished" | "postponed" | "cancelled";
   external_match_id: string | null;
   manually_corrected: boolean;
+  predictions_open: boolean;
   created_at: string;
   updated_at: string;
 };
