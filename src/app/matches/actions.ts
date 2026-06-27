@@ -79,18 +79,28 @@ export async function bulkUpsertPredictionsAction(
   const matchIds = predictions.map((p) => p.match_id);
   const { data: matchData } = await supabase
     .from("matches")
-    .select("id, phase")
+    .select("id, phase, kickoff_at")
     .in("id", matchIds);
 
-  const phaseMap: Record<number, string> = {};
-  for (const m of matchData ?? []) {
-    phaseMap[(m as { id: number; phase: string }).id] = (m as { id: number; phase: string }).phase;
+  type MatchRow = { id: number; phase: string; kickoff_at: string };
+  const matchMap: Record<number, MatchRow> = {};
+  for (const m of (matchData ?? []) as MatchRow[]) {
+    matchMap[m.id] = m;
   }
 
   const now = new Date();
   for (const p of predictions) {
-    const phase = phaseMap[p.match_id];
-    if (phase === "group_stage" && settings?.group_stage_lock_at) {
+    const match = matchMap[p.match_id];
+    if (!match) continue;
+    // Lock at kickoff
+    if (new Date(match.kickoff_at) <= now) {
+      return {
+        status: "error",
+        message: "Kampstart er passeret — buddet kan ikke gemmes.",
+        savedMatchIds: []
+      };
+    }
+    if (match.phase === "group_stage" && settings?.group_stage_lock_at) {
       if (new Date(settings.group_stage_lock_at) <= now) {
         return {
           status: "error",
@@ -99,7 +109,7 @@ export async function bulkUpsertPredictionsAction(
         };
       }
     }
-    if (phase === "knockout_stage" && settings?.knockout_stage_lock_at) {
+    if (match.phase === "knockout_stage" && settings?.knockout_stage_lock_at) {
       if (new Date(settings.knockout_stage_lock_at) <= now) {
         return {
           status: "error",
