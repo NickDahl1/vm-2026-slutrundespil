@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import type { Match } from "@/lib/types";
 import { STATUS_LABELS, PHASE_LABELS } from "@/lib/types";
 import { formatDanishDateTime } from "@/lib/date-format";
@@ -8,7 +8,8 @@ import {
   createMatchAction,
   updateMatchAction,
   deleteMatchAction,
-  resetManuallyCorrectedAction
+  resetManuallyCorrectedAction,
+  togglePredictionsOpenAction,
 } from "./actions";
 
 type Mode = "list" | "create" | "edit";
@@ -30,19 +31,56 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
+function TeamInput({
+  id,
+  name,
+  label,
+  defaultValue,
+  listId,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  defaultValue: string;
+  listId: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-xs font-bold text-slate-700" htmlFor={id}>
+        {label} *
+      </label>
+      <input
+        autoComplete="off"
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
+        defaultValue={defaultValue}
+        id={id}
+        list={listId}
+        name={name}
+        required
+        type="text"
+      />
+    </div>
+  );
+}
+
 function MatchForm({
   match,
-  action
+  action,
+  teamNames,
 }: {
   match?: Match;
   action: (formData: FormData) => Promise<void>;
+  teamNames: string[];
 }) {
-  const awayScoreRef = useRef<HTMLInputElement>(null);
-  const statusRef = useRef<HTMLSelectElement>(null);
-
   return (
     <form action={action} className="space-y-4">
       {match && <input type="hidden" name="id" value={match.id} />}
+
+      <datalist id="teams-datalist">
+        {teamNames.map((t) => (
+          <option key={t} value={t} />
+        ))}
+      </datalist>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -78,46 +116,33 @@ function MatchForm({
 
       <div className="space-y-1">
         <label className="block text-xs font-bold text-slate-700" htmlFor="group_name">
-          Gruppe
+          Gruppe / Runde
         </label>
         <input
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
           defaultValue={match?.group_name ?? ""}
           id="group_name"
           name="group_name"
-          placeholder="f.eks. Gruppe A"
+          placeholder="f.eks. Gruppe A eller 1/16-finale"
           type="text"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="block text-xs font-bold text-slate-700" htmlFor="home_team">
-            Hjemmehold *
-          </label>
-          <input
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
-            defaultValue={match?.home_team ?? ""}
-            id="home_team"
-            name="home_team"
-            required
-            type="text"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="block text-xs font-bold text-slate-700" htmlFor="away_team">
-            Udehold *
-          </label>
-          <input
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
-            defaultValue={match?.away_team ?? ""}
-            id="away_team"
-            name="away_team"
-            required
-            type="text"
-          />
-        </div>
+        <TeamInput
+          defaultValue={match?.home_team ?? ""}
+          id="home_team"
+          label="Hjemmehold"
+          listId="teams-datalist"
+          name="home_team"
+        />
+        <TeamInput
+          defaultValue={match?.away_team ?? ""}
+          id="away_team"
+          label="Udehold"
+          listId="teams-datalist"
+          name="away_team"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -140,7 +165,6 @@ function MatchForm({
             Status *
           </label>
           <select
-            ref={statusRef}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
             defaultValue={match?.status ?? "scheduled"}
             id="status"
@@ -169,9 +193,6 @@ function MatchForm({
               min="0"
               name="home_score_90"
               type="number"
-              onChange={(e) => {
-                if (e.target.value !== "") awayScoreRef.current?.focus();
-              }}
             />
           </div>
           <div className="space-y-1">
@@ -179,22 +200,38 @@ function MatchForm({
               Udemål
             </label>
             <input
-              ref={awayScoreRef}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
               defaultValue={match?.away_score_90 ?? ""}
               id="away_score_90"
               min="0"
               name="away_score_90"
               type="number"
-              onChange={(e) => {
-                if (e.target.value !== "") statusRef.current?.focus();
-              }}
             />
           </div>
         </div>
       </div>
 
       <SubmitButton label={match ? "Gem ændringer" : "Opret kamp"} />
+    </form>
+  );
+}
+
+function PredictionsOpenToggle({ match }: { match: Match }) {
+  const isOpen = match.predictions_open;
+  return (
+    <form action={togglePredictionsOpenAction}>
+      <input name="id" type="hidden" value={match.id} />
+      <input name="predictions_open" type="hidden" value={isOpen ? "false" : "true"} />
+      <button
+        className={
+          isOpen
+            ? "rounded-lg border border-pitch-200 bg-pitch-50 px-3 py-2 text-sm font-bold text-pitch-700 shadow-sm"
+            : "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700 shadow-sm"
+        }
+        type="submit"
+      >
+        {isOpen ? "Luk for besvarelse" : "Abn for besvarelse"}
+      </button>
     </form>
   );
 }
@@ -210,6 +247,9 @@ function MatchCard({
   setPendingDelete: (id: number | null) => void;
   startEdit: (match: Match) => void;
 }) {
+  const isKnockout = match.phase === "knockout_stage";
+  const isOpen = match.predictions_open;
+
   return (
     <article className="card space-y-3">
       <div className="flex items-start justify-between gap-2">
@@ -217,8 +257,17 @@ function MatchCard({
           <div className="flex flex-wrap items-center gap-2">
             <span className="badge">#{match.match_no}</span>
             <span className="badge">{PHASE_LABELS[match.phase]}</span>
-            {match.group_name && (
-              <span className="badge">{match.group_name}</span>
+            {match.group_name && <span className="badge">{match.group_name}</span>}
+            {isKnockout && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-black ${
+                  isOpen
+                    ? "bg-pitch-100 text-pitch-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                {isOpen ? "Bud abn" : "Bud lukket"}
+              </span>
             )}
           </div>
           <p className="mt-2 font-black text-slate-950">
@@ -234,7 +283,7 @@ function MatchCard({
           </p>
           {match.manually_corrected && (
             <p className="mt-1 text-xs font-semibold text-amber-600">
-              🔒 Manuelt rettet — auto-sync deaktiveret
+              Manuelt rettet — auto-sync deaktiveret
             </p>
           )}
         </div>
@@ -269,6 +318,7 @@ function MatchCard({
           >
             Rediger
           </button>
+          {isKnockout && <PredictionsOpenToggle match={match} />}
           <button
             className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-600 shadow-sm"
             onClick={() => setPendingDelete(match.id)}
@@ -293,7 +343,13 @@ function MatchCard({
   );
 }
 
-export function AdminMatchesClient({ matches }: { matches: Match[] }) {
+export function AdminMatchesClient({
+  matches,
+  teamNames,
+}: {
+  matches: Match[];
+  teamNames: string[];
+}) {
   const [mode, setMode] = useState<Mode>("list");
   const [editMatch, setEditMatch] = useState<Match | null>(null);
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
@@ -335,6 +391,7 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
             action={mode === "create" ? createMatchAction : updateMatchAction}
             key={mode === "edit" ? `edit-${editMatch?.id}` : "create"}
             match={editMatch ?? undefined}
+            teamNames={teamNames}
           />
         </section>
       </div>
@@ -343,6 +400,14 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
 
   const upcoming = matches.filter((m) => m.status !== "finished");
   const finished = matches.filter((m) => m.status === "finished").slice().reverse();
+
+  const knockoutOpen = upcoming.filter(
+    (m) => m.phase === "knockout_stage" && m.predictions_open
+  );
+  const knockoutClosed = upcoming.filter(
+    (m) => m.phase === "knockout_stage" && !m.predictions_open
+  );
+  const groupUpcoming = upcoming.filter((m) => m.phase === "group_stage");
 
   return (
     <div className="space-y-4">
@@ -367,24 +432,73 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Kommende kampe — open by default */}
+          {knockoutOpen.length > 0 && (
+            <details className="group" open>
+              <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-pitch-200 bg-pitch-50 px-4 py-3 hover:bg-pitch-100 [&::-webkit-details-marker]:hidden">
+                <span className="font-black text-pitch-700">
+                  Slutspil — bud abn{" "}
+                  <span className="font-semibold opacity-70">({knockoutOpen.length})</span>
+                </span>
+                <svg className="h-4 w-4 flex-shrink-0 text-pitch-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="space-y-3 pt-3">
+                {knockoutOpen.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    pendingDelete={pendingDelete}
+                    setPendingDelete={setPendingDelete}
+                    startEdit={startEdit}
+                  />
+                ))}
+              </div>
+            </details>
+          )}
+
+          {knockoutClosed.length > 0 && (
+            <details className="group" open>
+              <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 [&::-webkit-details-marker]:hidden">
+                <span className="font-black text-amber-700">
+                  Slutspil — bud lukket{" "}
+                  <span className="font-semibold opacity-70">({knockoutClosed.length})</span>
+                </span>
+                <svg className="h-4 w-4 flex-shrink-0 text-amber-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="space-y-3 pt-3">
+                {knockoutClosed.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    pendingDelete={pendingDelete}
+                    setPendingDelete={setPendingDelete}
+                    startEdit={startEdit}
+                  />
+                ))}
+              </div>
+            </details>
+          )}
+
           <details className="group" open>
             <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
               <span className="font-black text-slate-800">
-                Kommende kampe{" "}
-                <span className="font-semibold text-slate-400">({upcoming.length})</span>
+                Kommende gruppespilskampe{" "}
+                <span className="font-semibold text-slate-400">({groupUpcoming.length})</span>
               </span>
               <svg className="h-4 w-4 flex-shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                 <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </summary>
             <div className="space-y-3 pt-3">
-              {upcoming.length === 0 ? (
+              {groupUpcoming.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
-                  <p className="text-sm font-semibold text-slate-400">Ingen kommende kampe</p>
+                  <p className="text-sm font-semibold text-slate-400">Ingen kommende gruppespilskampe</p>
                 </div>
               ) : (
-                upcoming.map((match) => (
+                groupUpcoming.map((match) => (
                   <MatchCard
                     key={match.id}
                     match={match}
@@ -397,7 +511,6 @@ export function AdminMatchesClient({ matches }: { matches: Match[] }) {
             </div>
           </details>
 
-          {/* Afsluttede kampe — collapsed by default */}
           <details className="group">
             <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
               <span className="font-black text-slate-800">

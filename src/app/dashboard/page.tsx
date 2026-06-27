@@ -5,7 +5,6 @@ import { FormMessage } from "@/components/form-message";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDanishDateTime, formatDanishTime } from "@/lib/date-format";
-import { isKnockoutOpen } from "@/lib/match-utils";
 import type { AppSettings } from "@/lib/types";
 
 type PredSummary = {
@@ -44,6 +43,12 @@ type UpcomingPredRow = {
   predicted_away_score: number;
 };
 
+type OpenMatchRow = {
+  id: number;
+  phase: string;
+  status: string;
+};
+
 function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString("da-DK", {
     timeZone: "Europe/Copenhagen",
@@ -67,12 +72,10 @@ export default async function DashboardPage({
   const supabase = await createClient();
 
   const [
-    { count: groupMatchCount },
-    { count: allMatchCount },
+    { data: openMatchData },
     { data: settingsData },
     { data: finishedMatchData },
     { data: userPredData },
-    { data: groupStageMatchIdsData },
     { data: rankData },
     { count: participantCount },
     { count: statementCount },
@@ -80,12 +83,10 @@ export default async function DashboardPage({
     { data: allLeadersData },
     { data: upcomingMatchData },
   ] = await Promise.all([
-    supabase.from("matches").select("*", { count: "exact", head: true }).eq("phase", "group_stage"),
-    supabase.from("matches").select("*", { count: "exact", head: true }),
+    supabase.from("matches").select("id, phase, status").eq("predictions_open", true),
     supabase.from("app_settings").select("*").single(),
     supabase.from("matches").select("id").eq("status", "finished").not("home_score_90", "is", null),
     supabase.from("match_predictions").select("match_id, total_points, points_outcome").eq("user_id", user.id),
-    supabase.from("matches").select("id").eq("phase", "group_stage"),
     supabase.from("leaderboard_view" as never).select("rank, match_points, statement_points, total_points").eq("user_id", user.id).single(),
     supabase.from("leaderboard_view" as never).select("*", { count: "exact", head: true }),
     supabase.from("statements").select("*", { count: "exact", head: true }),
@@ -95,16 +96,22 @@ export default async function DashboardPage({
   ]);
 
   const settings = settingsData as AppSettings | null;
-  const knockoutOpen = isKnockoutOpen(settings);
-  const total = knockoutOpen ? (allMatchCount ?? 0) : (groupMatchCount ?? 0);
+  const openMatches = (openMatchData ?? []) as OpenMatchRow[];
+  const openMatchIds = new Set(openMatches.map((m) => m.id));
+  const total = openMatches.length;
 
-  const groupStageMatchIds = new Set(((groupStageMatchIdsData ?? []) as { id: number }[]).map((m) => m.id));
   const allUserPreds = (userPredData ?? []) as PredSummary[];
-  const submitted = knockoutOpen
-    ? allUserPreds.length
-    : allUserPreds.filter((p) => groupStageMatchIds.has(p.match_id)).length;
-
+  const submitted = allUserPreds.filter((p) => openMatchIds.has(p.match_id)).length;
   const missing = Math.max(0, total - submitted);
+
+  // Open knockout matches not yet finished — drives the "udfyld slutspilsbud" CTA
+  const openKnockoutPending = openMatches.filter(
+    (m) => m.phase === "knockout_stage" && m.status !== "finished"
+  );
+  const openKnockoutPendingIds = new Set(openKnockoutPending.map((m) => m.id));
+  const submittedKnockout = allUserPreds.filter((p) => openKnockoutPendingIds.has(p.match_id)).length;
+  const missingKnockout = Math.max(0, openKnockoutPending.length - submittedKnockout);
+
   const entry = rankData as RankEntry | null;
   const participants = participantCount ?? 0;
   const totalStatements = statementCount ?? 0;
@@ -135,7 +142,6 @@ export default async function DashboardPage({
     upcomingPreds = (data ?? []) as UpcomingPredRow[];
   }
 
-  // Per-match: my prediction + crowd averages + deviation
   const predsByMatch = new Map<number, UpcomingPredRow[]>();
   for (const p of upcomingPreds) {
     const list = predsByMatch.get(p.match_id) ?? [];
@@ -183,17 +189,16 @@ export default async function DashboardPage({
       />
       <FormMessage searchParams={params} />
 
-      {/* Lock / deadline status banner */}
       {settings?.game_locked ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <p className="font-black text-red-700">🔒 Spillet er låst</p>
+          <p className="font-black text-red-700">Spillet er låst</p>
           <p className="mt-0.5 text-sm font-semibold text-red-600">
             Ingen kampbud eller udsagn kan ændres lige nu.
           </p>
         </div>
       ) : groupLocked ? (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="font-black text-slate-700">🔒 Grundspilsbud er låst</p>
+          <p className="font-black text-slate-700">Grundspilsbud er låst</p>
           <p className="mt-0.5 text-sm font-semibold text-slate-500">
             Fristen passerede{" "}
             {settings?.group_stage_lock_at ? formatDanishDateTime(settings.group_stage_lock_at) : ""}.
@@ -201,13 +206,33 @@ export default async function DashboardPage({
         </div>
       ) : settings?.group_stage_lock_at ? (
         <div className="rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-3">
-          <p className="font-black text-pitch-700">⏰ Spillet er åbent</p>
+          <p className="font-black text-pitch-700">Spillet er åbent</p>
           <p className="mt-0.5 text-sm font-semibold text-pitch-500">
             Du kan afgive bud frem til{" "}
             <strong>{formatDanishDateTime(settings.group_stage_lock_at)}</strong>.
           </p>
         </div>
       ) : null}
+
+      {/* CTA: open knockout matches waiting for prediction */}
+      {missingKnockout > 0 && (
+        <Link
+          className="flex items-center justify-between rounded-lg border border-pitch-700 bg-pitch-700 px-4 py-3.5 hover:bg-pitch-600"
+          href="/matches"
+        >
+          <div>
+            <p className="font-black text-white">
+              {missingKnockout === 1
+                ? "1 slutspilskamp mangler dit bud"
+                : `${missingKnockout} slutspilskampe mangler dit bud`}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-pitch-200">
+              Udfyld dit bud nu
+            </p>
+          </div>
+          <span className="text-lg font-black text-white">→</span>
+        </Link>
+      )}
 
       {/* ── Stillingen ─────────────────────────────────────────────────────── */}
       {leaders.length > 0 && (
@@ -275,7 +300,6 @@ export default async function DashboardPage({
                   </p>
 
                   <div className="grid grid-cols-3 gap-2 rounded-lg bg-slate-50 px-3 py-2.5">
-                    {/* Dit bud */}
                     <div className="space-y-0.5">
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Dit bud
@@ -288,7 +312,6 @@ export default async function DashboardPage({
                         <p className="text-sm font-bold text-amber-600">Ikke budt</p>
                       )}
                     </div>
-                    {/* Snit */}
                     <div className="space-y-0.5">
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Snit ({predCount})
@@ -301,7 +324,6 @@ export default async function DashboardPage({
                         <p className="text-sm font-semibold text-slate-300">—</p>
                       )}
                     </div>
-                    {/* Afvigelse */}
                     <div className="space-y-0.5">
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Afvigelse
@@ -324,7 +346,6 @@ export default async function DashboardPage({
                     </div>
                   </div>
 
-                  {/* Deviation summary text */}
                   {hasPred && totalDev !== null && (
                     <p className="text-xs font-semibold text-slate-400">
                       {Math.abs(totalDev) < 0.05
@@ -369,7 +390,7 @@ export default async function DashboardPage({
             value={settings?.game_locked ? "Låst" : missing === 0 && missingStatements === 0 ? "Klar" : "Åben"}
           />
           <StatCard
-            detail={`Ud af ${total} ${knockoutOpen ? "" : "grundspils"}kampe`}
+            detail={`Ud af ${total} åbne kampe`}
             label="Kampbud afgivet"
             tone={missing === 0 ? "green" : "neutral"}
             value={String(submitted)}
@@ -399,13 +420,12 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      {/* Home screen CTA */}
       <Link
         className="flex items-center justify-between rounded-lg border border-pitch-100 bg-pitch-50 px-4 py-3 hover:bg-pitch-100"
         href="/rules#startskærm"
       >
         <div>
-          <p className="text-sm font-black text-pitch-700">📱 Sæt appen på din startskærm</p>
+          <p className="text-sm font-black text-pitch-700">Sæt appen på din startskærm</p>
           <p className="text-xs font-semibold text-pitch-500">Åbn som app — tager 10 sekunder</p>
         </div>
         <span className="text-sm font-black text-pitch-700">→</span>

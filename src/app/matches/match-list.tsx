@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useReducer } from "react";
 import type { Match, Prediction, AppSettings } from "@/lib/types";
-import { isKnockoutOpen, isMatchRelevant } from "@/lib/match-utils";
+import { isMatchRelevant } from "@/lib/match-utils";
 import { formatDanishDate, formatDanishTime, getDanishDateKey } from "@/lib/date-format";
 import { bulkUpsertPredictionsAction, type BulkPredictionState } from "./actions";
 
@@ -70,10 +70,8 @@ function groupByDanishDate(matches: Match[]): [string, Match[]][] {
 function isMatchLocked(match: Match, settings: AppSettings | null): boolean {
   if (!settings) return false;
   if (settings.game_locked) return true;
-  // Knockout matches are always locked until admin opens them
-  if (match.phase === "knockout_stage" && !settings.knockout_predictions_open) {
-    return true;
-  }
+  // Per-match flag gates knockout predictions (and back-fills group_stage as true)
+  if (!match.predictions_open) return true;
   const now = new Date();
   if (match.phase === "group_stage" && settings.group_stage_lock_at) {
     return new Date(settings.group_stage_lock_at) <= now;
@@ -281,12 +279,10 @@ export function MatchList({
     dispatch({ type: "edit", matchId, home, away });
   }
 
-  const knockoutOpen = isKnockoutOpen(settings);
-
-  // Split matches into relevant (shown in main list) and knockout-not-yet-open
-  const relevantMatches = matches.filter((m) => isMatchRelevant(m, knockoutOpen));
+  // Split matches into relevant (predictions_open = true) and coming-soon
+  const relevantMatches = matches.filter((m) => isMatchRelevant(m));
   const knockoutComingSoon = matches.filter(
-    (m) => m.phase === "knockout_stage" && !knockoutOpen
+    (m) => m.phase === "knockout_stage" && !m.predictions_open
   );
 
   const grouped = groupByDanishDate(relevantMatches);

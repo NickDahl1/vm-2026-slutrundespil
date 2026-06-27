@@ -6,7 +6,8 @@
 import type { Match, AppSettings } from "./types";
 
 /**
- * Whether knockout-stage predictions are open.
+ * Whether knockout-stage predictions are open (global settings flag).
+ * Still used as a convenience helper in a few places.
  * Defaults to false when settings are unavailable.
  */
 export function isKnockoutOpen(settings: AppSettings | null | undefined): boolean {
@@ -14,24 +15,19 @@ export function isKnockoutOpen(settings: AppSettings | null | undefined): boolea
 }
 
 /**
- * Whether a match is "relevant" for the current phase —
- * i.e. whether users are expected to have submitted (or should submit) a
- * prediction for it.
- *
- * Group-stage matches are always relevant.
- * Knockout-stage matches are only relevant once knockout predictions are open.
+ * Whether a match should be shown in the main prediction list.
+ * Uses the per-match `predictions_open` flag.
+ * Group-stage matches are back-filled to predictions_open = true in the DB.
  */
 export function isMatchRelevant(
-  match: Pick<Match, "phase">,
-  knockoutOpen: boolean
+  match: Pick<Match, "predictions_open">,
 ): boolean {
-  if (match.phase === "group_stage") return true;
-  return knockoutOpen;
+  return match.predictions_open;
 }
 
 /**
  * Returns the relevant match count for the current phase state.
- * Used to avoid requiring knockout predictions before knockout is open.
+ * Kept for reference; callers should prefer counting openMatchIds directly.
  */
 export function relevantMatchCount(
   groupStageCount: number,

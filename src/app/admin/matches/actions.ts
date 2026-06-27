@@ -73,6 +73,9 @@ export async function createMatchAction(formData: FormData) {
     withError("Udfyld alle påkrævede felter.");
   }
 
+  // Group stage is always open; knockout starts closed until admin toggles it
+  const predictionsOpen = phase === "group_stage";
+
   const { error } = await supabase.from("matches").insert({
     match_no: matchNo,
     phase,
@@ -82,7 +85,8 @@ export async function createMatchAction(formData: FormData) {
     kickoff_at: kickoffAt,
     home_score_90: homeScore,
     away_score_90: awayScore,
-    status
+    status,
+    predictions_open: predictionsOpen,
   });
 
   if (error) {
@@ -121,6 +125,18 @@ export async function updateMatchAction(formData: FormData) {
   const manuallyCorrected =
     homeScore !== null && awayScore !== null ? true : undefined;
 
+  // If the phase changes, reset predictions_open to the safe default for the new phase.
+  const { data: existing } = await supabase
+    .from("matches")
+    .select("phase, predictions_open")
+    .eq("id", id)
+    .single();
+  const existingPhase = (existing as { phase: string } | null)?.phase;
+  let predictionsOpenUpdate: { predictions_open: boolean } | Record<string, never> = {};
+  if (existingPhase && existingPhase !== phase) {
+    predictionsOpenUpdate = { predictions_open: phase === "group_stage" };
+  }
+
   const { error } = await supabase
     .from("matches")
     .update({
@@ -133,7 +149,8 @@ export async function updateMatchAction(formData: FormData) {
       home_score_90: homeScore,
       away_score_90: awayScore,
       status,
-      ...(manuallyCorrected !== undefined ? { manually_corrected: manuallyCorrected } : {})
+      ...(manuallyCorrected !== undefined ? { manually_corrected: manuallyCorrected } : {}),
+      ...predictionsOpenUpdate,
     })
     .eq("id", id);
 
@@ -184,6 +201,28 @@ export async function resetManuallyCorrectedAction(formData: FormData) {
 
   revalidatePath("/admin/matches");
   withMessage("Auto-sync er genaktiveret for denne kamp.");
+}
+
+export async function togglePredictionsOpenAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const id = readOptionalInt(formData, "id");
+  if (!id) withError("Ugyldig kamp.");
+
+  const open = readString(formData, "predictions_open") === "true";
+
+  const { error } = await supabase
+    .from("matches")
+    .update({ predictions_open: open })
+    .eq("id", id);
+
+  if (error) withError("Kunne ikke ændre besvarelsesstatus. Prøv igen.");
+
+  revalidatePath("/admin/matches");
+  revalidatePath("/matches");
+  revalidatePath("/dashboard");
+  withMessage(open ? "Besvarelse åbnet." : "Besvarelse lukket.");
 }
 
 export async function recalculateAllPointsAction(_formData: FormData) {
