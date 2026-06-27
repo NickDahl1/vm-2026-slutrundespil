@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useReducer } from "react";
+import { useActionState, useEffect, useReducer, useRef } from "react";
 import type { Match, Prediction, AppSettings } from "@/lib/types";
 import { isMatchRelevant } from "@/lib/match-utils";
 import { formatDanishDate, formatDanishTime, getDanishDateKey } from "@/lib/date-format";
@@ -128,6 +128,7 @@ function MatchRow({
   status: MatchStatus;
   onInputChange: (matchId: number, home: string, away: string) => void;
 }) {
+  const awayRef = useRef<HTMLInputElement>(null);
   const isFinished = match.status === "finished";
   const isLocked = status === "locked";
 
@@ -204,9 +205,14 @@ function MatchRow({
             className={`${inputBase} ${inputVariantCls(status)}`}
             inputMode="numeric"
             min="0"
-            onChange={(e) =>
-              onInputChange(match.id, e.target.value, input?.away ?? "")
-            }
+            onChange={(e) => {
+              const val = e.target.value;
+              onInputChange(match.id, val, input?.away ?? "");
+              if (val !== "") {
+                awayRef.current?.focus();
+                awayRef.current?.select();
+              }
+            }}
             placeholder="0"
             step="1"
             type="number"
@@ -214,6 +220,7 @@ function MatchRow({
           />
           <span className="text-xs font-black text-slate-300">–</span>
           <input
+            ref={awayRef}
             className={`${inputBase} ${inputVariantCls(status)}`}
             inputMode="numeric"
             min="0"
@@ -286,18 +293,13 @@ export function MatchList({
     (m) => m.phase === "knockout_stage" && !m.predictions_open
   );
 
-  // Sort: unlocked+unfilled matches first, then by kickoff_at
+  // Sort: unlocked+unsaved matches first, then by kickoff_at.
+  // Only uses savedIds (not inputValues) so typing doesn't cause jumps.
   const sortedMatches = [...relevantMatches].sort((a, b) => {
     const aLocked = isMatchLocked(a, settings) || a.status === "finished";
     const bLocked = isMatchLocked(b, settings) || b.status === "finished";
-    const aFilled =
-      savedIds.has(a.id) ||
-      (inputValues[a.id]?.home !== "" && inputValues[a.id]?.away !== "");
-    const bFilled =
-      savedIds.has(b.id) ||
-      (inputValues[b.id]?.home !== "" && inputValues[b.id]?.away !== "");
-    const aMissing = !aLocked && !aFilled;
-    const bMissing = !bLocked && !bFilled;
+    const aMissing = !aLocked && !savedIds.has(a.id);
+    const bMissing = !bLocked && !savedIds.has(b.id);
     if (aMissing !== bMissing) return aMissing ? -1 : 1;
     return new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime();
   });
