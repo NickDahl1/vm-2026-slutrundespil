@@ -104,13 +104,6 @@ export default async function DashboardPage({
   const submitted = allUserPreds.filter((p) => openMatchIds.has(p.match_id)).length;
   const missing = Math.max(0, total - submitted);
 
-  // Open knockout matches not yet finished — drives the "udfyld slutspilsbud" CTA
-  const openKnockoutPending = openMatches.filter(
-    (m) => m.phase === "knockout_stage" && m.status !== "finished"
-  );
-  const openKnockoutPendingIds = new Set(openKnockoutPending.map((m) => m.id));
-  const submittedKnockout = allUserPreds.filter((p) => openKnockoutPendingIds.has(p.match_id)).length;
-  const missingKnockout = Math.max(0, openKnockoutPending.length - submittedKnockout);
 
   const entry = rankData as RankEntry | null;
   const participants = participantCount ?? 0;
@@ -214,17 +207,17 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      {/* CTA: open knockout matches waiting for prediction */}
-      {missingKnockout > 0 && (
+      {/* CTA: any open matches waiting for prediction */}
+      {missing > 0 && (
         <Link
           className="flex items-center justify-between rounded-lg border border-pitch-700 bg-pitch-700 px-4 py-3.5 hover:bg-pitch-600"
           href="/matches"
         >
           <div>
             <p className="font-black text-white">
-              {missingKnockout === 1
-                ? "1 slutspilskamp mangler dit bud"
-                : `${missingKnockout} slutspilskampe mangler dit bud`}
+              {missing === 1
+                ? "1 kamp mangler dit bud"
+                : `${missing} kampe mangler dit bud`}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-pitch-200">
               Udfyld dit bud nu

@@ -401,13 +401,12 @@ export function AdminMatchesClient({
   const upcoming = matches.filter((m) => m.status !== "finished");
   const finished = matches.filter((m) => m.status === "finished").slice().reverse();
 
-  const knockoutOpen = upcoming.filter(
-    (m) => m.phase === "knockout_stage" && m.predictions_open
-  );
+  // Knockout matches where teams are not yet known — admin fills these in
   const knockoutClosed = upcoming.filter(
     (m) => m.phase === "knockout_stage" && !m.predictions_open
   );
-  const groupUpcoming = upcoming.filter((m) => m.phase === "group_stage");
+  // All upcoming matches open for predictions (group stage + open knockout)
+  const comingOpen = upcoming.filter((m) => m.predictions_open);
 
   return (
     <div className="space-y-4">
@@ -432,36 +431,11 @@ export function AdminMatchesClient({
         </div>
       ) : (
         <div className="space-y-3">
-          {knockoutOpen.length > 0 && (
-            <details className="group" open>
-              <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-pitch-200 bg-pitch-50 px-4 py-3 hover:bg-pitch-100 [&::-webkit-details-marker]:hidden">
-                <span className="font-black text-pitch-700">
-                  Slutspil — bud abn{" "}
-                  <span className="font-semibold opacity-70">({knockoutOpen.length})</span>
-                </span>
-                <svg className="h-4 w-4 flex-shrink-0 text-pitch-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                  <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </summary>
-              <div className="space-y-3 pt-3">
-                {knockoutOpen.map((match) => (
-                  <MatchCard
-                    key={match.id}
-                    match={match}
-                    pendingDelete={pendingDelete}
-                    setPendingDelete={setPendingDelete}
-                    startEdit={startEdit}
-                  />
-                ))}
-              </div>
-            </details>
-          )}
-
           {knockoutClosed.length > 0 && (
             <details className="group" open>
               <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 [&::-webkit-details-marker]:hidden">
                 <span className="font-black text-amber-700">
-                  Slutspil — bud lukket{" "}
+                  Slutspil — holds ikke afklaret{" "}
                   <span className="font-semibold opacity-70">({knockoutClosed.length})</span>
                 </span>
                 <svg className="h-4 w-4 flex-shrink-0 text-amber-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -485,20 +459,20 @@ export function AdminMatchesClient({
           <details className="group" open>
             <summary className="flex cursor-pointer list-none select-none items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
               <span className="font-black text-slate-800">
-                Kommende gruppespilskampe{" "}
-                <span className="font-semibold text-slate-400">({groupUpcoming.length})</span>
+                Kommende kampe{" "}
+                <span className="font-semibold text-slate-400">({comingOpen.length})</span>
               </span>
               <svg className="h-4 w-4 flex-shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                 <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </summary>
             <div className="space-y-3 pt-3">
-              {groupUpcoming.length === 0 ? (
+              {comingOpen.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
-                  <p className="text-sm font-semibold text-slate-400">Ingen kommende gruppespilskampe</p>
+                  <p className="text-sm font-semibold text-slate-400">Ingen kommende kampe</p>
                 </div>
               ) : (
-                groupUpcoming.map((match) => (
+                comingOpen.map((match) => (
                   <MatchCard
                     key={match.id}
                     match={match}
