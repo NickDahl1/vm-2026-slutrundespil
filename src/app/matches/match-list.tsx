@@ -70,9 +70,10 @@ function groupByDanishDate(matches: Match[]): [string, Match[]][] {
 function isMatchLocked(match: Match, settings: AppSettings | null): boolean {
   if (!settings) return false;
   if (settings.game_locked) return true;
-  // Per-match flag gates knockout predictions (and back-fills group_stage as true)
   if (!match.predictions_open) return true;
   const now = new Date();
+  // Lock the moment kickoff has passed
+  if (new Date(match.kickoff_at) <= now) return true;
   if (match.phase === "group_stage" && settings.group_stage_lock_at) {
     return new Date(settings.group_stage_lock_at) <= now;
   }
@@ -285,7 +286,23 @@ export function MatchList({
     (m) => m.phase === "knockout_stage" && !m.predictions_open
   );
 
-  const grouped = groupByDanishDate(relevantMatches);
+  // Sort: unlocked+unfilled matches first, then by kickoff_at
+  const sortedMatches = [...relevantMatches].sort((a, b) => {
+    const aLocked = isMatchLocked(a, settings) || a.status === "finished";
+    const bLocked = isMatchLocked(b, settings) || b.status === "finished";
+    const aFilled =
+      savedIds.has(a.id) ||
+      (inputValues[a.id]?.home !== "" && inputValues[a.id]?.away !== "");
+    const bFilled =
+      savedIds.has(b.id) ||
+      (inputValues[b.id]?.home !== "" && inputValues[b.id]?.away !== "");
+    const aMissing = !aLocked && !aFilled;
+    const bMissing = !bLocked && !bFilled;
+    if (aMissing !== bMissing) return aMissing ? -1 : 1;
+    return new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime();
+  });
+
+  const grouped = groupByDanishDate(sortedMatches);
 
   // Collect dirty + fully-filled predictions to submit (only relevant matches)
   const dirtyPredictions = [...dirtyIds]

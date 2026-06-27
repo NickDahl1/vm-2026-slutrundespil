@@ -36,29 +36,35 @@ function TeamInput({
   name,
   label,
   defaultValue,
-  listId,
+  teamNames,
 }: {
   id: string;
   name: string;
   label: string;
   defaultValue: string;
-  listId: string;
+  teamNames: string[];
 }) {
+  const knownTeam = teamNames.includes(defaultValue);
   return (
     <div className="space-y-1">
       <label className="block text-xs font-bold text-slate-700" htmlFor={id}>
         {label} *
       </label>
-      <input
-        autoComplete="off"
+      <select
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-950 focus:border-pitch-700 focus:outline-none"
         defaultValue={defaultValue}
         id={id}
-        list={listId}
         name={name}
         required
-        type="text"
-      />
+      >
+        <option value="">— Vælg hold —</option>
+        {!knownTeam && defaultValue && (
+          <option value={defaultValue}>{defaultValue}</option>
+        )}
+        {teamNames.map((t) => (
+          <option key={t} value={t}>{t}</option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -75,12 +81,6 @@ function MatchForm({
   return (
     <form action={action} className="space-y-4">
       {match && <input type="hidden" name="id" value={match.id} />}
-
-      <datalist id="teams-datalist">
-        {teamNames.map((t) => (
-          <option key={t} value={t} />
-        ))}
-      </datalist>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -133,15 +133,15 @@ function MatchForm({
           defaultValue={match?.home_team ?? ""}
           id="home_team"
           label="Hjemmehold"
-          listId="teams-datalist"
           name="home_team"
+          teamNames={teamNames}
         />
         <TeamInput
           defaultValue={match?.away_team ?? ""}
           id="away_team"
           label="Udehold"
-          listId="teams-datalist"
           name="away_team"
+          teamNames={teamNames}
         />
       </div>
 
