@@ -207,6 +207,16 @@ export default function RulesPage() {
             Har du spørgsmål? Kontakt admin.
           </li>
         </ul>
+        <p className="text-xs font-semibold text-slate-400">
+          Det bemærkes herved, at Australien i nærværende konkurrences sammenhæng klassificeres under
+          det Asiatiske Fodboldforbund (AFC), i overensstemmelse med Australiens fulde og gyldige
+          medlemsskab heraf. Administrationen, herunder særligt deltageren Min, er hermed eksplicit,
+          uigenkaldeligt og uden forbehold fritaget for ethvert ansvar, enhver indsigelse samt enhver
+          form for retskrav, protest eller anden anfægtelse, opstået som følge af, at en deltager har
+          misforstået, fejlfortolket eller på anden vis ikke har været bekendt med Australiens
+          kontinentale fodboldforbundsmæssige tilhørsforhold. Min er derudover specifikt og
+          særskilt afskåret fra at fremføre indvendinger af enhver art i relation til ovenstående.
+        </p>
       </section>
     </div>
   );
